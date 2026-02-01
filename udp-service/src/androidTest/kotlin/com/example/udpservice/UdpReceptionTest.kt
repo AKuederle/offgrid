@@ -12,16 +12,18 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.example.udpservice.api.PacketParser
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 
 /**
- * Stage 2 Emulator Tests: UDP packet reception via localhost.
+ * Stage 2: Emulator + Device Tests - UDP packet reception via localhost.
  *
  * These tests verify core UDP functionality using 127.0.0.1 loopback,
  * which works identically on emulator and physical device.
@@ -31,10 +33,12 @@ class UdpReceptionTest {
 
     private lateinit var udpSocket: UdpSocket
     private val testPort = 15000 // Use high port to avoid conflicts
+    private val testAppId = "test"
 
     @Before
     fun setup() {
         udpSocket = UdpSocket()
+        udpSocket.registerAppId(testAppId)
     }
 
     @After
@@ -78,7 +82,10 @@ class UdpReceptionTest {
             packetDeferred.await()
         }
 
-        assertEquals(testMessage, packet.displayText)
+        val parsed = PacketParser.parse(packet.data)
+        assertNotNull("Failed to parse packet", parsed)
+        assertEquals(testAppId, parsed!!.appId)
+        assertEquals(testMessage, String(parsed.payload, Charsets.UTF_8))
         assertTrue(
             "Expected loopback address, got: ${packet.sourceAddress.address}",
             packet.sourceAddress.address.isLoopbackAddress
@@ -97,7 +104,11 @@ class UdpReceptionTest {
 
         // Start collecting first
         val packetsDeferred = async {
-            udpSocket.packets.take(3).toList().map { it.displayText }
+            udpSocket.packets.take(3).toList().map { packet ->
+                val parsed = PacketParser.parse(packet.data)
+                assertNotNull("Failed to parse packet", parsed)
+                String(parsed!!.payload, Charsets.UTF_8)
+            }
         }
 
         // Give collect a moment to start, then send
@@ -154,12 +165,16 @@ class UdpReceptionTest {
             packetDeferred.await()
         }
 
-        assertEquals(unicodeMessage, packet.displayText)
+        val parsed = PacketParser.parse(packet.data)
+        assertNotNull("Failed to parse packet", parsed)
+        assertEquals(testAppId, parsed!!.appId)
+        assertEquals(unicodeMessage, String(parsed.payload, Charsets.UTF_8))
     }
 
     private fun sendUdpPacket(host: String, port: Int, message: String) {
         DatagramSocket().use { socket ->
-            val data = message.toByteArray(Charsets.UTF_8)
+            val data = PacketParser.encode(testAppId, message.toByteArray(Charsets.UTF_8))
+                ?: throw IllegalArgumentException("Failed to encode packet")
             val address = InetAddress.getByName(host)
             val packet = DatagramPacket(data, data.size, address, port)
             socket.send(packet)
