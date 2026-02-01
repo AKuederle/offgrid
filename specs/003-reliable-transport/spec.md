@@ -3,163 +3,248 @@
 **Feature Branch**: `003-reliable-transport`
 **Created**: 2026-02-01
 **Status**: Draft
-**Input**: User description: "Switch from raw UDP to Kotlin reliable-udp library for automatic retry and reliability features"
+**Input**: User description: "Custom reliable UDP implementation with ARQ, fragmentation, and parallel packet sending - borrowing concepts from QUIC"
 
 ## Overview
 
-Replace the current raw UDP implementation (`DatagramSocket`) with the [seniorjoinu/reliable-udp](https://github.com/seniorjoinu/reliable-udp) Kotlin library. This library provides reliable packet delivery using fountain codes, eliminating packet loss without traditional retry mechanisms.
+Implement a custom reliable transport layer on top of UDP, borrowing proven concepts from QUIC (Selective Repeat ARQ, packet numbering, SACK). This replaces the current raw `DatagramSocket` with a reliability layer that provides:
+
+- **Automatic retry** via Selective Repeat ARQ
+- **Large message support** via fragmentation/reassembly
+- **Parallel packet sending** for throughput
+- **Delivery confirmation** via Selective ACK (SACK)
+
+### Why Custom Implementation?
+
+Existing libraries have blockers:
+- [seniorjoinu/reliable-udp](https://github.com/seniorjoinu/reliable-udp): Android ARM native library loading fails ([Issue #3](https://github.com/seniorjoinu/reliable-udp/issues/3))
+- [java-Kcp](https://github.com/l42111996/java-Kcp): Connection-oriented, heavy Netty dependency
+- Other RUDP libraries: Connection-based or unmaintained
+
+By implementing ourselves, we get:
+- Full control over the wire protocol
+- No native library dependencies
+- Kotlin coroutine-native design
+- Tailored to our connectionless use case
 
 ### Why UDP (Not TCP)?
 
-The system intentionally uses UDP rather than TCP or other connection-based protocols:
+- **Connectionless**: No handshake; devices send messages immediately
+- **No TLS/certificates**: Security handled at app layer with payload encryption
+- **Simpler NAT traversal**: No connection state to maintain
+- **Future multicast potential**: UDP enables one-to-many broadcasting
 
-- **Connectionless**: No handshake required; devices can send messages immediately without establishing a session
-- **No TLS/certificates**: Security is handled at the application layer with app-level encryption of payload data
-- **Simpler network topology**: No connection state to maintain across NAT or network changes
-- **Future multicast potential**: UDP enables one-to-many broadcasting if needed
+## Technical Design
 
-### Why Reliable Transport?
+### Wire Protocol
 
-Current limitations with raw UDP:
-- **No delivery guarantee**: Packets can be lost without notification
-- **No ordering**: Packets may arrive out of order
-- **No congestion control**: Can overwhelm the network or receiver
-- **Manual retry logic**: Would need to implement ACK/retry ourselves
+Borrowing from [QUIC RFC 9002](https://quicwg.org/base-drafts/rfc9002.html):
 
-Benefits of reliable-udp library (while preserving UDP's connectionless nature):
-- **Fountain codes**: Mathematical approach to reliability without retransmission
-- **Coroutine-native**: Suspending `send()` and `receive()` functions
-- **Thread-safe multiplexing**: Built-in support for concurrent operations
-- **ACK-based confirmation**: Sender knows when data is reconstructed
-- **Configurable**: MTU, window size, congestion timeout, cleanup intervals
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Reliable UDP Header (12 bytes)                              │
+├──────────┬──────────┬───────────┬───────────┬──────────────┤
+│ Type (1) │ MsgID(4) │ SeqNum(4) │ FragIdx(1)│ FragTotal(1) │
+│          │          │           │ (1-based) │              │
+├──────────┴──────────┴───────────┴───────────┴──────────────┤
+│ Payload (existing appId prefix + data)                      │
+└─────────────────────────────────────────────────────────────┘
+
+Packet Types:
+  0x01 = DATA      - Payload packet (requires ACK)
+  0x02 = ACK       - Acknowledgment with SACK ranges
+  0x03 = PING      - Keep-alive / RTT measurement
+
+MsgID:    Unique per logical message (for reassembly)
+SeqNum:   Strictly increasing, never reused (QUIC-style)
+FragIdx:  1-N for fragments, 1 if single packet
+FragTotal: Total fragments in message (1 if unfragmented)
+```
+
+### ACK Packet Format (SACK)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Type=0x02 │ LargestAcked(4) │ AckRangeCount(1) │ Ranges... │
+├───────────┴─────────────────┴──────────────────┴───────────┤
+│ Each Range: GapSize(2) + AckCount(2) = 4 bytes             │
+└─────────────────────────────────────────────────────────────┘
+
+Example: "Received 1-5, 8-10, 12" encoded as:
+  LargestAcked=12, Ranges=[(gap=1, ack=1), (gap=2, ack=3), (gap=0, ack=5)]
+```
+
+### Key Components (Borrowing from [Quincy](https://github.com/protocol7/quincy))
+
+| Component | Purpose | Reference |
+|-----------|---------|-----------|
+| `PacketBuffer` | Track sent-but-unacked packets with timestamps | [Quincy PacketBuffer.java](https://github.com/protocol7/quincy/blob/master/quic/src/main/java/com/protocol7/quincy/reliability/PacketBuffer.java) |
+| `AckQueue` | Queue received packet numbers for batched ACK | [Quincy AckQueue.java](https://github.com/protocol7/quincy/blob/master/quic/src/main/java/com/protocol7/quincy/reliability/AckQueue.java) |
+| `FragmentBuffer` | Reassemble out-of-order fragments per MsgID | Custom |
+| `RetransmitTimer` | Trigger retransmission on timeout | Based on QUIC PTO |
+
+### Reliability Mechanisms
+
+**From [QUIC Loss Detection](https://www.rfc-editor.org/rfc/rfc9002.html):**
+
+1. **Strictly increasing packet numbers**: Every packet (including retransmits) gets a new SeqNum - eliminates ACK ambiguity
+2. **Selective ACK (SACK)**: Receiver reports ranges of received packets - sender retransmits only missing ones
+3. **Fast retransmit**: If 3 packets after X are ACKed but X isn't, assume X is lost
+4. **Timeout retransmit**: RTO-based fallback (default: 200ms, adaptive based on RTT)
+
+**Fragmentation:**
+1. Sender fragments messages >1400 bytes into MTU-sized chunks
+2. All fragments sent in parallel (same MsgID, different FragIdx)
+3. Receiver buffers fragments, delivers when FragTotal received
+4. Each fragment individually ACKed and retransmitted if lost
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Guaranteed Message Delivery (Priority: P1)
+### User Story 1 - Reliable Delivery Under Loss (Priority: P1)
 
-As a sender, I want my packets to be reliably delivered even on lossy networks, so that I don't lose critical data.
+As a sender, I want my packets to be reliably delivered even when the network drops packets.
 
-**Why this priority**: Core value proposition - without reliable delivery, the library migration provides no benefit.
+**Why this priority**: Core reliability guarantee is the primary value.
 
-**Independent Test**: Send 100 packets over a simulated lossy network (10% packet loss) and verify all 100 are received.
+**Independent Test**: Adapted from [QUIC Interop Runner](https://github.com/quic-interop/quic-interop-runner):
+- Send 50 messages over simulated 30% packet loss
+- Verify all 50 messages received intact
 
 **Acceptance Scenarios**:
 
-1. **Given** sender sends a packet, **When** network drops some UDP datagrams, **Then** receiver still reconstructs complete message via fountain codes
-2. **Given** sender sends a large message (>MTU), **When** message is fragmented, **Then** receiver reconstructs the complete message
-3. **Given** sender sends a packet, **When** delivery is confirmed, **Then** sender receives ACK callback
+1. **Given** 10% packet loss, **When** sender sends 100 packets, **Then** receiver gets all 100 (via retransmission)
+2. **Given** packet X is lost, **When** packets X+1, X+2, X+3 arrive, **Then** sender fast-retransmits X
+3. **Given** packet X is lost and no subsequent packets, **When** RTO expires, **Then** sender retransmits X
 
 ---
 
-### User Story 2 - Backward-Compatible API (Priority: P1)
+### User Story 2 - Large Message Fragmentation (Priority: P1)
 
-As a developer using the udp-service library, I want the API to remain largely unchanged, so that I don't need to rewrite my integration code.
+As a sender, I want to send messages larger than MTU without manual chunking.
 
-**Why this priority**: Breaking API changes would require updating all consumers, increasing migration friction.
+**Why this priority**: Simplifies API for users sending images, files, or large payloads.
 
-**Independent Test**: Existing `UdpReceiver` interface and packet flow continue to work without changes to consuming code.
+**Independent Test**: Send 64KB message, verify received intact.
 
 **Acceptance Scenarios**:
 
-1. **Given** existing `UdpReceiver.packets` Flow subscription, **When** reliable transport is enabled, **Then** packets are still emitted to the same Flow
-2. **Given** existing `registerAppId()` API, **When** using reliable transport, **Then** appId filtering continues to work
-3. **Given** existing packet format (1-byte appId length prefix), **When** using reliable transport, **Then** packet parsing remains compatible
+1. **Given** message of 10KB, **When** sent, **Then** automatically fragmented into ~8 packets
+2. **Given** fragments arrive out of order, **When** all fragments received, **Then** message reassembled correctly
+3. **Given** one fragment lost, **When** other fragments ACKed, **Then** only lost fragment retransmitted
 
 ---
 
-### User Story 3 - Sender Confirmation (Priority: P2)
+### User Story 3 - Backward-Compatible API (Priority: P1)
 
-As a sender (Python tool), I want to know when my message was successfully received, so that I can implement application-level acknowledgment.
+As a developer, I want the existing `UdpReceiver` interface to work unchanged.
 
-**Why this priority**: Enables senders to confirm delivery, but the receiver-side reliability is more critical.
+**Why this priority**: Minimize migration effort for existing code.
 
-**Independent Test**: Python sender tool receives ACK after sending a packet.
+**Independent Test**: Existing unit tests pass without modification.
 
 **Acceptance Scenarios**:
 
-1. **Given** sender sends a packet with reliable transport, **When** receiver reconstructs message, **Then** sender receives ACK
-2. **Given** sender sends a packet, **When** no ACK received within timeout, **Then** sender can detect delivery failure
+1. **Given** existing `packets` Flow subscription, **When** reliable layer active, **Then** complete messages emitted (not fragments)
+2. **Given** existing `registerAppId()` call, **When** packet received, **Then** appId filtering still works
+3. **Given** app-level payload format unchanged, **When** message delivered, **Then** original payload bytes preserved
 
 ---
 
-### User Story 4 - Configuration Options (Priority: P3)
+### User Story 4 - Sender Delivery Confirmation (Priority: P2)
 
-As an advanced user, I want to configure reliability parameters, so that I can tune performance for my network conditions.
+As a sender, I want to know when my message was delivered.
 
-**Why this priority**: Nice-to-have customization, but sensible defaults should work for most cases.
+**Why this priority**: Enables application-level retry logic or user feedback.
 
-**Independent Test**: Change MTU setting and verify it affects packet fragmentation behavior.
+**Independent Test**: Sender callback invoked within 100ms of receiver ACK.
 
 **Acceptance Scenarios**:
 
-1. **Given** default configuration, **When** service starts, **Then** reasonable defaults are used (MTU ~1400, appropriate timeouts)
-2. **Given** custom configuration, **When** service starts with overrides, **Then** custom values are applied
+1. **Given** message sent, **When** all fragments ACKed, **Then** delivery callback invoked
+2. **Given** message sent, **When** max retries exceeded, **Then** failure callback invoked
 
 ---
 
 ### Edge Cases
 
-- What happens when the reliable-udp library fails to initialize? → Fall back to error state, do not silently use raw UDP
-- How does the system handle extremely large messages (>64KB)? → Library should fragment and reassemble automatically
-- What happens if the sender uses raw UDP but receiver expects reliable? → Packets should be dropped with clear logging (protocol mismatch)
-- How does the system handle rapid sender restart? → Multiplexing should handle connection state cleanup
+- **Duplicate packets**: Receiver deduplicates by SeqNum
+- **Very old ACKs**: Sender ignores ACKs for already-confirmed packets
+- **Fragment timeout**: If not all fragments arrive within 30s, discard partial message
+- **Sender restart**: Fresh SeqNum sequence; receiver may briefly hold stale fragment buffers
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST replace `DatagramSocket` with `reliable-udp` library's socket implementation
-- **FR-002**: System MUST maintain the existing `UdpReceiver` interface contract (packets Flow, state Flow, registerAppId)
-- **FR-003**: System MUST support the existing packet format (1-byte appId length prefix + payload)
-- **FR-004**: System MUST provide ACK confirmation to senders when packets are successfully received
-- **FR-005**: System MUST handle packet fragmentation and reassembly transparently for messages larger than MTU
-- **FR-006**: System MUST log reliability events (ACK sent, packet reconstructed, errors) for debugging
-- **FR-007**: System MUST gracefully handle library initialization failures with clear error messages
-- **FR-008**: Python sender tool MUST be updated to use reliable-udp wire protocol
+- **FR-001**: System MUST implement Selective Repeat ARQ with SACK
+- **FR-002**: System MUST fragment messages >1400 bytes automatically
+- **FR-003**: System MUST reassemble fragments in any arrival order
+- **FR-004**: System MUST retransmit unacked packets after timeout (default 200ms)
+- **FR-005**: System MUST fast-retransmit after 3 out-of-order ACKs
+- **FR-006**: System MUST use strictly increasing packet sequence numbers
+- **FR-007**: System MUST maintain the existing `UdpReceiver` interface contract
+- **FR-008**: System MUST preserve existing packet format (appId prefix) in payload
+- **FR-009**: System MUST provide delivery confirmation callback to senders
+- **FR-010**: Python sender tool MUST implement the reliable protocol
 
 ### Non-Functional Requirements
 
-- **NFR-001**: Reliable transport MUST NOT significantly increase memory usage (target: <10% increase)
-- **NFR-002**: Reliable transport SHOULD improve effective throughput on lossy networks compared to raw UDP with manual retry
-- **NFR-003**: Library integration MUST be compatible with Android API 29+ (minSdk)
+- **NFR-001**: Memory usage <10% increase over raw UDP
+- **NFR-002**: Latency overhead <50ms on local network (RTT contribution from ACK)
+- **NFR-003**: Compatible with Android API 29+ (no native libraries)
+- **NFR-004**: Pure Kotlin implementation (no Netty, no JNI)
 
 ### Key Entities
 
-- **ReliableSocket**: Wrapper around reliable-udp library socket, implementing same lifecycle as current UdpSocket
-- **ReliablePacket**: Internal representation during reconstruction (managed by library)
-- **AckCallback**: Mechanism for notifying senders of successful delivery
+- **ReliableSocket**: Wraps DatagramSocket with reliability layer
+- **PacketBuffer**: Tracks sent packets awaiting ACK, with timestamps
+- **AckQueue**: Batches received packet numbers for SACK generation
+- **FragmentBuffer**: Reassembles message fragments by MsgID
+- **ReliablePacket**: Header + payload with serialization
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% packet delivery on networks with up to 20% simulated packet loss (compared to ~80% with raw UDP)
-- **SC-002**: Existing unit tests and integration tests pass without modification (API compatibility)
-- **SC-003**: ACK received by sender within 500ms of packet delivery on local network
-- **SC-004**: Service starts successfully with reliable transport in under 2 seconds
+Adapted from [QUIC Interop Test Cases](https://github.com/quic-interop/quic-interop-runner):
 
-## Library Alternatives Considered
+- **SC-001**: 100% message delivery at 30% packet loss (50 messages × 1KB)
+- **SC-002**: 100% message delivery at 2% packet loss for 2MB transfer
+- **SC-003**: Large message (64KB) delivered intact via fragmentation
+- **SC-004**: Existing unit tests pass without modification
+- **SC-005**: Delivery confirmation within 500ms on local network
 
-| Library | Decision | Rationale |
-|---------|----------|-----------|
-| [seniorjoinu/reliable-udp](https://github.com/seniorjoinu/reliable-udp) | **Selected** | Kotlin coroutine-native, connectionless, fountain codes for reliability |
-| [java-Kcp](https://github.com/l42111996/java-Kcp) | Rejected | Java/Netty overhead, KCP has connection concept |
-| [rozsa-network](https://github.com/dendriel/rozsa-network) | Rejected | Java-only, connection-based RUDP |
-| [RSocket-Kotlin](https://github.com/rsocket/rsocket-kotlin) | Rejected | TCP/WebSocket based, requires connections |
-| [KryoNet](https://github.com/EsotericSoftware/kryonet) | Rejected | UDP is unreliable in KryoNet, only TCP is reliable |
+## Reference Implementations
 
-**Fallback plan**: If `seniorjoinu/reliable-udp` proves incompatible with modern Android/Kotlin, evaluate `java-Kcp` or implement a simpler ARQ layer ourselves.
+### Code to Borrow/Adapt
+
+| Source | What to Use | License |
+|--------|-------------|---------|
+| [Quincy](https://github.com/protocol7/quincy) | PacketBuffer, AckQueue patterns | Apache 2.0 |
+| [QUIC RFC 9002](https://www.rfc-editor.org/rfc/rfc9002.html) | Loss detection algorithms | IETF standard |
+| [quic-interop-runner](https://github.com/quic-interop/quic-interop-runner) | Test case definitions | MIT |
+
+### Test Infrastructure
+
+From [quic-interop-runner testcases.py](https://github.com/quic-interop/quic-interop-runner):
+
+| Test Case | Parameters | What It Validates |
+|-----------|------------|-------------------|
+| HandshakeLoss | 30% loss, 50 runs, 1KB each | Reliability under extreme loss |
+| TransferLoss | 2% loss, 2MB file | Sustained transfer reliability |
+| Multiconnect | 50 sequential sends | Connection-less operation |
 
 ## Assumptions
 
-- The `seniorjoinu/reliable-udp` library is compatible with Android and Kotlin 1.9.x
-- The library's fountain codes approach provides sufficient reliability for local network use cases
-- The library is actively maintained or stable enough for production use (last update: 2019, but stable)
-- Both sender and receiver must use the reliable-udp protocol (not interoperable with raw UDP)
+- Local network latency <50ms (LAN/WiFi use case)
+- Maximum message size 64KB (reasonable for our use case)
+- Receiver can buffer up to 100 pending fragments
+- Kotlin coroutines sufficient for async packet handling (no Netty needed)
 
 ## Out of Scope
 
-- TCP fallback option
-- Custom fountain code implementation
-- Cross-network (internet) reliability guarantees
-- Backward compatibility with raw UDP senders (will require Python tool update)
+- Congestion control (local network assumption)
+- Connection establishment/teardown (connectionless design)
+- Encryption (handled at app layer)
+- QUIC-compatible wire format (custom protocol for simplicity)
+- Stream multiplexing (single logical stream per appId)

@@ -31,6 +31,15 @@
 
 ## Notes
 
-- Spec references the specific library (`seniorjoinu/reliable-udp`) in the Overview section - this is acceptable as context for the feature description, not an implementation mandate
-- The library was last updated in 2019 - noted in Assumptions section as a consideration
-- Python sender tool update is included in scope (FR-008) since both ends must speak the same protocol
+- **Custom implementation chosen** over existing libraries due to:
+  - `seniorjoinu/reliable-udp`: Android ARM native library loading fails
+  - `java-Kcp`: Connection-oriented, heavy Netty dependency
+  - Other RUDP libraries: Connection-based or unmaintained
+
+- **Technical design section** includes wire protocol and component references - acceptable for spec clarity; implementation will refine these during planning
+
+- **Test cases borrowed** from QUIC interop runner (MIT license) - provides battle-tested scenarios
+
+- **Code references** to Quincy (Apache 2.0) for PacketBuffer/AckQueue patterns - will port to Kotlin
+
+- Python sender tool update included in scope (FR-010) since both ends must speak the same protocol
