@@ -33,7 +33,7 @@ class TestSendCommand:
         result = runner.invoke(main, ["send", "-h", "localhost", "-m", "test"])
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000)
+        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
 
     @patch("udp_sender.cli.UdpSender")
     def test_send_accepts_custom_port(self, mock_sender_class: MagicMock) -> None:
@@ -47,7 +47,7 @@ class TestSendCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 9999)
+        mock_sender_class.assert_called_once_with("localhost", 9999, app_id=None)
 
     @patch("udp_sender.cli.UdpSender")
     def test_send_calls_sender_send(self, mock_sender_class: MagicMock) -> None:
@@ -74,7 +74,7 @@ class TestSendCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
         mock_sender.send.assert_called_once_with("test")
 
 
@@ -98,7 +98,7 @@ class TestFloodCommand:
         result = runner.invoke(main, ["flood", "-h", "localhost"])
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000)
+        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
 
     @patch("udp_sender.cli.UdpSender")
     def test_flood_uses_default_rate_and_duration(
@@ -165,7 +165,7 @@ class TestFloodCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
         mock_sender.flood.assert_called_once_with(rate=50, duration=5)
 
     @patch("udp_sender.cli.UdpSender")
@@ -202,7 +202,7 @@ class TestInteractiveCommand:
         result = runner.invoke(main, ["interactive", "-h", "localhost"], input="")
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000)
+        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
 
     @patch("udp_sender.cli.UdpSender")
     def test_interactive_sends_input_lines(self, mock_sender_class: MagicMock) -> None:
@@ -237,7 +237,7 @@ class TestInteractiveCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
 
 
 class TestMainGroup:

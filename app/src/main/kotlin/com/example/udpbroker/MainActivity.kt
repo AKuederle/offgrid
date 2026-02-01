@@ -21,11 +21,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.udpbroker.ui.BrokerScreen
-import com.example.udpbroker.ui.ReceiverState
-import com.example.udpbroker.ui.ServiceStatus
+import com.example.udpbroker.ui.PacketDetailView
+import com.example.udpbroker.ui.UiReceiverState
+import com.example.udpbroker.ui.UiServiceStatus
 import com.example.udpbroker.ui.theme.UDPBrokerTheme
 import com.example.udpservice.UdpReceiver
 import com.example.udpservice.UdpReceiverService
+import com.example.udpservice.persistence.PacketDatabase
+import com.example.udpservice.persistence.PacketEntity
 import com.example.udpservice.api.ReceiverState as ServiceReceiverState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,21 +44,34 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        // This app's unique identifier for receiving UDP packets
+        // Packets must have this appId prefix to be received
+        const val APP_ID = "broker"
     }
 
     private var receiver: UdpReceiver? = null
     private var bound = false
     private val activityScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val packetLog = PacketLog()
+
+    // Database for packet persistence
+    private val database by lazy { PacketDatabase.getInstance(applicationContext) }
+    private val packetDao by lazy { database.packetDao() }
+
+    // Flow of packets from database (filtered by our appId)
+    private val _packets = MutableStateFlow<List<PacketEntity>>(emptyList())
+
+    // Currently selected packet for detail view (null = show list)
+    private val _selectedPacket = MutableStateFlow<PacketEntity?>(null)
 
     private var serviceBinder: UdpReceiverService.LocalBinder? = null
 
     // Observable state for UI
-    private val _uiState = MutableStateFlow(ReceiverState())
-    private val uiState: StateFlow<ReceiverState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(UiReceiverState())
+    private val uiState: StateFlow<UiReceiverState> = _uiState.asStateFlow()
 
     private var packetCollectionJob: Job? = null
     private var stateCollectionJob: Job? = null
+    private var databaseObserveJob: Job? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -63,8 +79,13 @@ class MainActivity : ComponentActivity() {
             serviceBinder = binder as? UdpReceiverService.LocalBinder
             receiver = serviceBinder?.getReceiver()
             bound = true
-            startPacketCollection()
+
+            // Register our appId to receive packets
+            receiver?.registerAppId(APP_ID)
+            Log.d(TAG, "Registered appId: $APP_ID")
+
             startStateCollection()
+            startDatabaseObservation()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -73,19 +94,20 @@ class MainActivity : ComponentActivity() {
             packetCollectionJob = null
             stateCollectionJob?.cancel()
             stateCollectionJob = null
+            databaseObserveJob?.cancel()
+            databaseObserveJob = null
             serviceBinder = null
             receiver = null
             bound = false
-            _uiState.value = ReceiverState()
+            _uiState.value = UiReceiverState()
         }
     }
 
-    private fun startPacketCollection() {
-        packetCollectionJob?.cancel()
-        val currentReceiver = receiver ?: return
-        packetCollectionJob = activityScope.launch {
-            currentReceiver.packets.collect { packet ->
-                packetLog.add(packet)
+    private fun startDatabaseObservation() {
+        databaseObserveJob?.cancel()
+        databaseObserveJob = activityScope.launch {
+            packetDao.observePacketsByAppId(APP_ID, limit = 100).collect { packets ->
+                _packets.value = packets
             }
         }
     }
@@ -95,12 +117,12 @@ class MainActivity : ComponentActivity() {
         val currentReceiver = receiver ?: return
         stateCollectionJob = activityScope.launch {
             currentReceiver.state.collect { receiverState ->
-                _uiState.value = ReceiverState(
+                _uiState.value = UiReceiverState(
                     status = when (receiverState) {
-                        is ServiceReceiverState.Stopped -> ServiceStatus.STOPPED
-                        is ServiceReceiverState.Starting -> ServiceStatus.STARTING
-                        is ServiceReceiverState.Running -> ServiceStatus.RUNNING
-                        is ServiceReceiverState.Error -> ServiceStatus.ERROR
+                        is ServiceReceiverState.Stopped -> UiServiceStatus.STOPPED
+                        is ServiceReceiverState.Starting -> UiServiceStatus.STARTING
+                        is ServiceReceiverState.Running -> UiServiceStatus.RUNNING
+                        is ServiceReceiverState.Error -> UiServiceStatus.ERROR
                     },
                     port = (receiverState as? ServiceReceiverState.Running)?.port,
                     addresses = (receiverState as? ServiceReceiverState.Running)?.addresses ?: emptyList(),
@@ -167,14 +189,43 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MainContent() {
         val state by uiState.collectAsState()
-        val packets by packetLog.packets.collectAsState()
+        val packets by _packets.collectAsState()
+        val selectedPacket by _selectedPacket.collectAsState()
 
-        BrokerScreen(
+        selectedPacket?.let { packet ->
+            PacketDetailView(
+                packet = packet,
+                onBackClick = { _selectedPacket.value = null }
+            )
+        } ?: BrokerScreen(
             state = state,
             packets = packets,
             onStartClick = { startService() },
-            onStopClick = { stopService() }
+            onStopClick = { stopService() },
+            onEraseClick = { eraseAllData() },
+            onPacketClick = { packet -> _selectedPacket.value = packet }
         )
+    }
+
+    private fun eraseAllData() {
+        activityScope.launch {
+            try {
+                val deleted = packetDao.deletePacketsByAppId(APP_ID)
+                Log.d(TAG, "Erased $deleted packets")
+                Toast.makeText(
+                    this@MainActivity,
+                    "Erased $deleted packets",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to erase data", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    "Failed to erase data",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     private fun requestNotificationPermission() {
@@ -190,6 +241,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun bindToService() {
+        if (bound) return
         val intent = Intent(this, UdpReceiverService::class.java)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
@@ -211,17 +263,20 @@ class MainActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             startService(intent)
         }
-        // Note: No need to call bindToService() here - onStart() already does it
+        // Bind to get state updates
+        bindToService()
     }
 
     private fun stopService() {
         Log.d(TAG, "Stopping service")
-        receiver?.let {
-            try {
-                it.stop()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error stopping service", e)
-            }
+        try {
+            // Must unbind first - Android won't stop a bound service
+            unbindFromService()
+            receiver = null
+            val serviceIntent = Intent(this, UdpReceiverService::class.java)
+            stopService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping service", e)
         }
     }
 }

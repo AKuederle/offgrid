@@ -9,7 +9,15 @@ import kotlinx.coroutines.flow.update
 /**
  * Thread-safe state holder for received UDP packets.
  * Maintains a list of packets with a maximum of [maxSize] entries, newest first.
+ *
+ * @deprecated This class is deprecated in favor of database-backed persistence.
+ * Use PacketDatabase.packetDao().observePacketsByAppId() for persistent storage.
+ * @see com.example.udpservice.persistence.PacketDatabase
  */
+@Deprecated(
+    message = "Use PacketDatabase for persistent storage",
+    replaceWith = ReplaceWith("PacketDatabase.getInstance(context).packetDao()")
+)
 class PacketLog(private val maxSize: Int = 100) {
     private val _packets = MutableStateFlow<List<UdpPacket>>(emptyList())
     val packets: StateFlow<List<UdpPacket>> = _packets.asStateFlow()
