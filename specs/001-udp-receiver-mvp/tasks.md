@@ -205,12 +205,12 @@
 
 ### Implementation
 
-- [ ] T060 [US6] Create README.md at repository root with Prerequisites section
-- [ ] T061 [US6] Add Build and Install section to README.md (Gradle commands, adb install)
-- [ ] T062 [US6] Add Testing section to README.md (finding device IP, using udp-sender)
-- [ ] T063 [US6] Add Python Tool section to README.md (send, flood, interactive modes)
-- [ ] T064 [US6] Add Development section to README.md (TDD workflow, test commands)
-- [ ] T065 [US6] Validate README by following it on the current setup
+- [X] T060 [US6] Create README.md at repository root with Prerequisites section
+- [X] T061 [US6] Add Build and Install section to README.md (Gradle commands, adb install)
+- [X] T062 [US6] Add Testing section to README.md (finding device IP, using udp-sender)
+- [X] T063 [US6] Add Python Tool section to README.md (send, flood, interactive modes)
+- [X] T064 [US6] Add Development section to README.md (TDD workflow, test commands)
+- [X] T065 [US6] Validate README by following it on the current setup
 
 **Checkpoint**: User Story 6 complete - documentation enables onboarding
 
@@ -220,11 +220,11 @@
 
 **Purpose**: Final improvements and validation
 
-- [ ] T066 Run full test suite: `./gradlew test connectedAndroidTest`
-- [ ] T067 [P] Add error handling for port already in use in UdpSocket
-- [ ] T068 [P] Add error state display in BrokerScreen
-- [ ] T069 Validate against quickstart.md workflow
-- [ ] T070 Final code review and cleanup
+- [X] T066 Run full test suite: `./gradlew test connectedAndroidTest`
+- [X] T067 [P] Add error handling for port already in use in UdpSocket (catches all exceptions)
+- [X] T068 [P] Add error state display in BrokerScreen (shows error message with red container)
+- [X] T069 Validate against quickstart.md workflow
+- [X] T070 Final code review and cleanup
 
 ---
 
