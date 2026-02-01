@@ -37,6 +37,7 @@ import java.util.Locale
 data class ReceiverState(
     val status: ServiceStatus = ServiceStatus.STOPPED,
     val port: Int? = null,
+    val addresses: List<String> = emptyList(),
     val error: String? = null
 )
 
@@ -123,19 +124,27 @@ fun BrokerScreen(
                         }
                     )
 
-                    // Show port when running
+                    // Show network info when running
                     if (state.status == ServiceStatus.RUNNING && state.port != null) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "Port: ${state.port}",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = when (state.status) {
-                                ServiceStatus.RUNNING -> MaterialTheme.colorScheme.onPrimaryContainer
-                                ServiceStatus.ERROR -> MaterialTheme.colorScheme.onErrorContainer
-                                ServiceStatus.STARTING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                ServiceStatus.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+                        val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+
+                        // Show IP addresses
+                        if (state.addresses.isNotEmpty()) {
+                            state.addresses.forEach { address ->
+                                Text(
+                                    "$address:${state.port}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = contentColor
+                                )
                             }
-                        )
+                        } else {
+                            Text(
+                                "Port: ${state.port}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = contentColor
+                            )
+                        }
                     }
 
                     // Show error message if present

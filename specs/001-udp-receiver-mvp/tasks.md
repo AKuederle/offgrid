@@ -104,18 +104,18 @@
 
 ### Tests (TDD - Write First, Ensure They FAIL)
 
-- [ ] T031 Unit test for UdpSocket packet emission via Flow in `udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt`
-- [ ] T032 [P] Unit test for packet log max 100 entries in `app/src/test/kotlin/com/example/udpbroker/PacketLogTest.kt`
+- [X] T031 Unit test for UdpSocket packet emission via Flow in `udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt`
+- [X] T032 [P] Unit test for packet log max 100 entries in `app/src/test/kotlin/com/example/udpbroker/PacketLogTest.kt`
 - [ ] T033 [P] On-device test for UDP packet reception in `udp-service/src/androidTest/kotlin/com/example/udpservice/UdpReceptionTest.kt`
 
 ### Implementation
 
-- [ ] T034 [US2] Add packet reception loop to UdpSocket in `udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt`
-- [ ] T035 [US2] Expose packets Flow from UdpReceiverService via LocalBinder in `udp-service/src/main/kotlin/com/example/udpservice/UdpReceiverService.kt`
-- [ ] T036 [US2] Create PacketLog state holder in `app/src/main/kotlin/com/example/udpbroker/PacketLog.kt` (max 100 entries, newest first)
-- [ ] T037 [US2] Add packet list UI to BrokerScreen in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt` (LazyColumn, packet display)
-- [ ] T038 [US2] Wire packet Flow collection in MainActivity in `app/src/main/kotlin/com/example/udpbroker/MainActivity.kt`
-- [ ] T039 [US2] Verify tests pass: `./gradlew :udp-service:test :app:test`
+- [X] T034 [US2] Add packet reception loop to UdpSocket in `udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt`
+- [X] T035 [US2] Expose packets Flow from UdpReceiverService via LocalBinder in `udp-service/src/main/kotlin/com/example/udpservice/UdpReceiverService.kt`
+- [X] T036 [US2] Create PacketLog state holder in `app/src/main/kotlin/com/example/udpbroker/PacketLog.kt` (max 100 entries, newest first)
+- [X] T037 [US2] Add packet list UI to BrokerScreen in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt` (LazyColumn, packet display)
+- [X] T038 [US2] Wire packet Flow collection in MainActivity in `app/src/main/kotlin/com/example/udpbroker/MainActivity.kt`
+- [X] T039 [US2] Verify tests pass: `./gradlew :udp-service:test :app:test`
 - [ ] T040 [US2] Verify on-device: `./gradlew :udp-service:connectedAndroidTest`
 
 **Checkpoint**: User Story 2 complete - packets appear in UI within 1 second
@@ -157,15 +157,15 @@
 
 ### Tests (TDD - Write First, Ensure They FAIL)
 
-- [ ] T048 Unit test for getLocalIpAddresses() filtering in `udp-service/src/test/kotlin/com/example/udpservice/NetworkUtilsTest.kt`
+- [X] T048 Unit test for getLocalIpAddresses() filtering in `udp-service/src/test/kotlin/com/example/udpservice/NetworkUtilsTest.kt`
 - [ ] T049 [P] On-device test for IP address display in `app/src/androidTest/kotlin/com/example/udpbroker/NetworkInfoDisplayTest.kt`
 
 ### Implementation
 
-- [ ] T050 [US4] Create NetworkUtils.kt in `udp-service/src/main/kotlin/com/example/udpservice/NetworkUtils.kt` with getLocalIpAddresses()
-- [ ] T051 [US4] Add addresses to ReceiverState.Running in `udp-service/src/main/kotlin/com/example/udpservice/api/ReceiverState.kt`
-- [ ] T052 [US4] Update BrokerScreen to display IP and port in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt`
-- [ ] T053 [US4] Verify tests pass: `./gradlew :udp-service:test :app:test`
+- [X] T050 [US4] Create NetworkUtils.kt in `udp-service/src/main/kotlin/com/example/udpservice/NetworkUtils.kt` with getLocalIpAddresses()
+- [X] T051 [US4] Add addresses to ReceiverState.Running in `udp-service/src/main/kotlin/com/example/udpservice/api/ReceiverState.kt`
+- [X] T052 [US4] Update BrokerScreen to display IP and port in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt`
+- [X] T053 [US4] Verify tests pass: `./gradlew :udp-service:test :app:test`
 
 **Checkpoint**: User Story 4 complete - IP and port visible in running state
 
@@ -181,14 +181,14 @@
 
 ### Tests (TDD - Write First, Ensure They FAIL)
 
-- [ ] T054 Unit test for UdpSocket stop() state transition in `udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt`
+- [X] T054 Unit test for UdpSocket stop() state transition in `udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt`
 - [ ] T055 [P] On-device test for service stop in `app/src/androidTest/kotlin/com/example/udpbroker/ServiceStopTest.kt`
 
 ### Implementation
 
-- [ ] T056 [US5] Implement stop() in UdpSocket in `udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt` (cancel job, close socket)
-- [ ] T057 [US5] Add stop button to BrokerScreen in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt`
-- [ ] T058 [US5] Wire stop action in MainActivity in `app/src/main/kotlin/com/example/udpbroker/MainActivity.kt`
+- [X] T056 [US5] Implement stop() in UdpSocket in `udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt` (cancel job, close socket)
+- [X] T057 [US5] Add stop button to BrokerScreen in `app/src/main/kotlin/com/example/udpbroker/ui/BrokerScreen.kt`
+- [X] T058 [US5] Wire stop action in MainActivity in `app/src/main/kotlin/com/example/udpbroker/MainActivity.kt`
 - [ ] T059 [US5] Verify tests pass and on-device: `./gradlew :app:connectedAndroidTest`
 
 **Checkpoint**: User Story 5 complete - service stops cleanly

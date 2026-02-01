@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
                         is ServiceReceiverState.Error -> ServiceStatus.ERROR
                     },
                     port = (receiverState as? ServiceReceiverState.Running)?.port,
+                    addresses = (receiverState as? ServiceReceiverState.Running)?.addresses ?: emptyList(),
                     error = (receiverState as? ServiceReceiverState.Error)?.message
                 )
             }

@@ -82,8 +82,8 @@ class UdpSocket(
                 val boundPort = newSocket.localPort
                 Log.d(TAG, "Socket bound to port $boundPort")
 
-                // Get local addresses (will be implemented in US4)
-                val addresses = emptyList<String>()
+                // Get local addresses for display
+                val addresses = NetworkUtils.getLocalIpAddresses()
 
                 _state.value = ReceiverState.Running(boundPort, addresses)
 
