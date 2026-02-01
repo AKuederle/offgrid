@@ -22,8 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.udpbroker.ui.BrokerScreen
 import com.example.udpbroker.ui.PacketDetailView
-import com.example.udpbroker.ui.ReceiverState
-import com.example.udpbroker.ui.ServiceStatus
+import com.example.udpbroker.ui.UiReceiverState
+import com.example.udpbroker.ui.UiServiceStatus
 import com.example.udpbroker.ui.theme.UDPBrokerTheme
 import com.example.udpservice.UdpReceiver
 import com.example.udpservice.UdpReceiverService
@@ -66,8 +66,8 @@ class MainActivity : ComponentActivity() {
     private var serviceBinder: UdpReceiverService.LocalBinder? = null
 
     // Observable state for UI
-    private val _uiState = MutableStateFlow(ReceiverState())
-    private val uiState: StateFlow<ReceiverState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(UiReceiverState())
+    private val uiState: StateFlow<UiReceiverState> = _uiState.asStateFlow()
 
     private var packetCollectionJob: Job? = null
     private var stateCollectionJob: Job? = null
@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
             serviceBinder = null
             receiver = null
             bound = false
-            _uiState.value = ReceiverState()
+            _uiState.value = UiReceiverState()
         }
     }
 
@@ -117,12 +117,12 @@ class MainActivity : ComponentActivity() {
         val currentReceiver = receiver ?: return
         stateCollectionJob = activityScope.launch {
             currentReceiver.state.collect { receiverState ->
-                _uiState.value = ReceiverState(
+                _uiState.value = UiReceiverState(
                     status = when (receiverState) {
-                        is ServiceReceiverState.Stopped -> ServiceStatus.STOPPED
-                        is ServiceReceiverState.Starting -> ServiceStatus.STARTING
-                        is ServiceReceiverState.Running -> ServiceStatus.RUNNING
-                        is ServiceReceiverState.Error -> ServiceStatus.ERROR
+                        is ServiceReceiverState.Stopped -> UiServiceStatus.STOPPED
+                        is ServiceReceiverState.Starting -> UiServiceStatus.STARTING
+                        is ServiceReceiverState.Running -> UiServiceStatus.RUNNING
+                        is ServiceReceiverState.Error -> UiServiceStatus.ERROR
                     },
                     port = (receiverState as? ServiceReceiverState.Running)?.port,
                     addresses = (receiverState as? ServiceReceiverState.Running)?.addresses ?: emptyList(),
@@ -192,21 +192,19 @@ class MainActivity : ComponentActivity() {
         val packets by _packets.collectAsState()
         val selectedPacket by _selectedPacket.collectAsState()
 
-        if (selectedPacket != null) {
+        selectedPacket?.let { packet ->
             PacketDetailView(
-                packet = selectedPacket!!,
+                packet = packet,
                 onBackClick = { _selectedPacket.value = null }
             )
-        } else {
-            BrokerScreen(
-                state = state,
-                packets = packets,
-                onStartClick = { startService() },
-                onStopClick = { stopService() },
-                onEraseClick = { eraseAllData() },
-                onPacketClick = { packet -> _selectedPacket.value = packet }
-            )
-        }
+        } ?: BrokerScreen(
+            state = state,
+            packets = packets,
+            onStartClick = { startService() },
+            onStopClick = { stopService() },
+            onEraseClick = { eraseAllData() },
+            onPacketClick = { packet -> _selectedPacket.value = packet }
+        )
     }
 
     private fun eraseAllData() {

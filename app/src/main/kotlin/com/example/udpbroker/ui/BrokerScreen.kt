@@ -44,14 +44,22 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class ReceiverState(
-    val status: ServiceStatus = ServiceStatus.STOPPED,
+/**
+ * UI-specific receiver state model.
+ * Named with "Ui" prefix to avoid collision with [com.example.udpservice.api.ReceiverState].
+ */
+data class UiReceiverState(
+    val status: UiServiceStatus = UiServiceStatus.STOPPED,
     val port: Int? = null,
     val addresses: List<String> = emptyList(),
     val error: String? = null
 )
 
-enum class ServiceStatus {
+/**
+ * UI-specific service status enum.
+ * Named with "Ui" prefix to avoid collision with service-layer types.
+ */
+enum class UiServiceStatus {
     STOPPED,
     STARTING,
     RUNNING,
@@ -61,7 +69,7 @@ enum class ServiceStatus {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerScreen(
-    state: ReceiverState,
+    state: UiReceiverState,
     packets: List<PacketEntity>,
     onStartClick: () -> Unit,
     onStopClick: () -> Unit,
@@ -132,10 +140,10 @@ fun BrokerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = when (state.status) {
-                        ServiceStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer
-                        ServiceStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
-                        ServiceStatus.STARTING -> MaterialTheme.colorScheme.secondaryContainer
-                        ServiceStatus.STOPPED -> MaterialTheme.colorScheme.surfaceContainer
+                        UiServiceStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer
+                        UiServiceStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
+                        UiServiceStatus.STARTING -> MaterialTheme.colorScheme.secondaryContainer
+                        UiServiceStatus.STOPPED -> MaterialTheme.colorScheme.surfaceContainer
                     }
                 )
             ) {
@@ -150,22 +158,22 @@ fun BrokerScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (state.status) {
-                            ServiceStatus.STOPPED -> "Stopped"
-                            ServiceStatus.STARTING -> "Starting"
-                            ServiceStatus.RUNNING -> "Running"
-                            ServiceStatus.ERROR -> "Error"
+                            UiServiceStatus.STOPPED -> "Stopped"
+                            UiServiceStatus.STARTING -> "Starting"
+                            UiServiceStatus.RUNNING -> "Running"
+                            UiServiceStatus.ERROR -> "Error"
                         },
                         style = MaterialTheme.typography.displaySmall,
                         color = when (state.status) {
-                            ServiceStatus.RUNNING -> MaterialTheme.colorScheme.onPrimaryContainer
-                            ServiceStatus.ERROR -> MaterialTheme.colorScheme.onErrorContainer
-                            ServiceStatus.STARTING -> MaterialTheme.colorScheme.onSecondaryContainer
-                            ServiceStatus.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+                            UiServiceStatus.RUNNING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            UiServiceStatus.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+                            UiServiceStatus.STARTING -> MaterialTheme.colorScheme.onSecondaryContainer
+                            UiServiceStatus.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
 
                     // Show network info when running
-                    if (state.status == ServiceStatus.RUNNING && state.port != null) {
+                    if (state.status == UiServiceStatus.RUNNING && state.port != null) {
                         Spacer(modifier = Modifier.height(12.dp))
                         val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
 
@@ -205,12 +213,12 @@ fun BrokerScreen(
             Button(
                 onClick = onStartClick,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = state.status == ServiceStatus.STOPPED || state.status == ServiceStatus.ERROR
+                enabled = state.status == UiServiceStatus.STOPPED || state.status == UiServiceStatus.ERROR
             ) {
                 Text("Start")
             }
 
-            if (state.status == ServiceStatus.RUNNING || state.status == ServiceStatus.STARTING) {
+            if (state.status == UiServiceStatus.RUNNING || state.status == UiServiceStatus.STARTING) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onStopClick,
@@ -226,7 +234,7 @@ fun BrokerScreen(
                 OutlinedButton(
                     onClick = { showEraseDialog = true },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = state.status == ServiceStatus.STOPPED,
+                    enabled = state.status == UiServiceStatus.STOPPED,
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
