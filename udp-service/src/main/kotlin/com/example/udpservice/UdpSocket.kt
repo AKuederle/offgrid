@@ -1,6 +1,7 @@
 package com.example.udpservice
 
 import android.util.Log
+import com.example.udpservice.api.PacketParser
 import com.example.udpservice.api.ReceiverState
 import com.example.udpservice.api.UdpPacket
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,6 +25,7 @@ import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Implementation of UdpReceiver that manages a UDP socket for receiving packets.
@@ -50,10 +52,19 @@ class UdpSocket(
     private val _state = MutableStateFlow<ReceiverState>(ReceiverState.Stopped)
     override val state: StateFlow<ReceiverState> = _state.asStateFlow()
 
+    private val _registeredAppIds = ConcurrentHashMap.newKeySet<String>()
+    override val registeredAppIds: Set<String> get() = _registeredAppIds.toSet()
+
     private val stateMutex = Mutex()
     private var socket: DatagramSocket? = null
     private var receiveJob: Job? = null
     private var scope: CoroutineScope? = null
+
+    /**
+     * Callback invoked when a valid packet is received.
+     * Set by the service to persist packets to database.
+     */
+    var onPacketReceived: (suspend (UdpPacket, String, ByteArray) -> Unit)? = null
 
     override suspend fun start(port: Int) {
         require(port in MIN_PORT..MAX_PORT) {
@@ -113,15 +124,32 @@ class UdpSocket(
             try {
                 val packet = DatagramPacket(buffer, buffer.size)
                 socket.receive(packet) // Blocking call
-                Log.d(TAG, "Received packet: ${packet.length} bytes from ${packet.address}:${packet.port}")
 
                 val data = packet.data.copyOf(packet.length)
                 val sourceAddress = InetSocketAddress(packet.address, packet.port)
+
+                // Parse appId prefix
+                val parsed = PacketParser.parse(data)
+                if (parsed == null) {
+                    Log.d(TAG, "Dropped packet: invalid appId prefix from ${packet.address}:${packet.port}")
+                    continue
+                }
+
+                // Check if appId is registered
+                if (!_registeredAppIds.contains(parsed.appId)) {
+                    Log.d(TAG, "Dropped packet: unregistered appId '${parsed.appId}' from ${packet.address}:${packet.port}")
+                    continue
+                }
+
+                Log.d(TAG, "Received packet: ${packet.length} bytes, appId='${parsed.appId}' from ${packet.address}:${packet.port}")
 
                 val udpPacket = UdpPacket(
                     data = data,
                     sourceAddress = sourceAddress
                 )
+
+                // Notify callback for persistence
+                onPacketReceived?.invoke(udpPacket, parsed.appId, parsed.payload)
 
                 _packets.emit(udpPacket)
             } catch (e: Exception) {
@@ -149,5 +177,15 @@ class UdpSocket(
 
         _state.value = ReceiverState.Stopped
         Log.d(TAG, "Socket stopped")
+    }
+
+    override fun registerAppId(appId: String) {
+        _registeredAppIds.add(appId)
+        Log.d(TAG, "Registered appId: $appId (total: ${_registeredAppIds.size})")
+    }
+
+    override fun unregisterAppId(appId: String) {
+        _registeredAppIds.remove(appId)
+        Log.d(TAG, "Unregistered appId: $appId (total: ${_registeredAppIds.size})")
     }
 }

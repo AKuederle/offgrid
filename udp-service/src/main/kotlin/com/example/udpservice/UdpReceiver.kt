@@ -9,7 +9,9 @@ import com.example.udpservice.api.ReceiverState
  * Interface for receiving UDP packets asynchronously.
  *
  * Implementations of this interface provide reactive streams for observing
- * incoming UDP packets and receiver state changes.
+ * incoming UDP packets and receiver state changes. Packets are filtered
+ * by registered appIds - only packets with valid registered appIds are
+ * emitted and persisted.
  */
 interface UdpReceiver {
     /**
@@ -17,6 +19,7 @@ interface UdpReceiver {
      *
      * Collectors will receive packets as they arrive. Late collectors
      * will not receive packets that were emitted before they started collecting.
+     * Only packets with registered appIds will be emitted.
      */
     val packets: SharedFlow<UdpPacket>
 
@@ -27,6 +30,11 @@ interface UdpReceiver {
      * receiver state changes (e.g., from stopped to running).
      */
     val state: StateFlow<ReceiverState>
+
+    /**
+     * The set of currently registered appIds.
+     */
+    val registeredAppIds: Set<String>
 
     /**
      * Starts the UDP receiver on the specified port.
@@ -47,4 +55,24 @@ interface UdpReceiver {
      * The [state] flow will be updated to reflect the stopped state.
      */
     fun stop()
+
+    /**
+     * Register an appId to receive packets for.
+     *
+     * Packets with this appId prefix will be persisted and emitted to observers.
+     * Packets with unregistered appIds are dropped.
+     *
+     * @param appId The application identifier to register
+     */
+    fun registerAppId(appId: String)
+
+    /**
+     * Unregister an appId.
+     *
+     * Packets with this appId will no longer be processed.
+     * Existing stored packets are not deleted.
+     *
+     * @param appId The application identifier to unregister
+     */
+    fun unregisterAppId(appId: String)
 }
