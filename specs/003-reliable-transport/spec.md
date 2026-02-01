@@ -9,6 +9,15 @@
 
 Replace the current raw UDP implementation (`DatagramSocket`) with the [seniorjoinu/reliable-udp](https://github.com/seniorjoinu/reliable-udp) Kotlin library. This library provides reliable packet delivery using fountain codes, eliminating packet loss without traditional retry mechanisms.
 
+### Why UDP (Not TCP)?
+
+The system intentionally uses UDP rather than TCP or other connection-based protocols:
+
+- **Connectionless**: No handshake required; devices can send messages immediately without establishing a session
+- **No TLS/certificates**: Security is handled at the application layer with app-level encryption of payload data
+- **Simpler network topology**: No connection state to maintain across NAT or network changes
+- **Future multicast potential**: UDP enables one-to-many broadcasting if needed
+
 ### Why Reliable Transport?
 
 Current limitations with raw UDP:
@@ -17,7 +26,7 @@ Current limitations with raw UDP:
 - **No congestion control**: Can overwhelm the network or receiver
 - **Manual retry logic**: Would need to implement ACK/retry ourselves
 
-Benefits of reliable-udp library:
+Benefits of reliable-udp library (while preserving UDP's connectionless nature):
 - **Fountain codes**: Mathematical approach to reliability without retransmission
 - **Coroutine-native**: Suspending `send()` and `receive()` functions
 - **Thread-safe multiplexing**: Built-in support for concurrent operations
@@ -128,6 +137,18 @@ As an advanced user, I want to configure reliability parameters, so that I can t
 - **SC-002**: Existing unit tests and integration tests pass without modification (API compatibility)
 - **SC-003**: ACK received by sender within 500ms of packet delivery on local network
 - **SC-004**: Service starts successfully with reliable transport in under 2 seconds
+
+## Library Alternatives Considered
+
+| Library | Decision | Rationale |
+|---------|----------|-----------|
+| [seniorjoinu/reliable-udp](https://github.com/seniorjoinu/reliable-udp) | **Selected** | Kotlin coroutine-native, connectionless, fountain codes for reliability |
+| [java-Kcp](https://github.com/l42111996/java-Kcp) | Rejected | Java/Netty overhead, KCP has connection concept |
+| [rozsa-network](https://github.com/dendriel/rozsa-network) | Rejected | Java-only, connection-based RUDP |
+| [RSocket-Kotlin](https://github.com/rsocket/rsocket-kotlin) | Rejected | TCP/WebSocket based, requires connections |
+| [KryoNet](https://github.com/EsotericSoftware/kryonet) | Rejected | UDP is unreliable in KryoNet, only TCP is reliable |
+
+**Fallback plan**: If `seniorjoinu/reliable-udp` proves incompatible with modern Android/Kotlin, evaluate `java-Kcp` or implement a simpler ARQ layer ourselves.
 
 ## Assumptions
 
