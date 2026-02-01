@@ -5,10 +5,41 @@ This guide explains how to manually test that the UDP service receives messages 
 ## Prerequisites
 
 1. Android device or emulator running
-2. UDP Broker app installed
-3. Device IP address (shown in app when service is running)
+2. USB debugging enabled (Settings > Developer Options > USB Debugging)
+3. Device connected via USB or emulator running
 
-## Quick Start
+## Install the App
+
+### Connect Device
+
+```bash
+# Verify device is connected
+adb devices
+```
+
+You should see your device listed:
+```
+List of devices attached
+ABC123XYZ    device
+```
+
+### Build and Install
+
+```bash
+# Build and install in one step
+./gradlew :app:installDebug
+
+# Or build first, then install
+./gradlew :app:assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Grant Permissions
+
+On Android 13+, you may need to grant notification permission when prompted, or manually:
+- Settings > Apps > UDP Broker > Notifications > Enable
+
+## Testing
 
 ### 1. Start the Service
 
