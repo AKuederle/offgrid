@@ -27,6 +27,45 @@ By implementing ourselves, we get:
 - Kotlin coroutine-native design
 - Tailored to our connectionless use case
 
+### Dedicated Library Module
+
+The reliable transport implementation will be a **standalone Gradle module** (`:reliable-udp`) that can be:
+- Used independently of the `udp-service` module
+- Published as a separate artifact if desired
+- Tested in isolation with unit tests
+
+```
+android-udp-service/
+├── reliable-udp/          # NEW: Standalone reliable transport library
+│   ├── src/main/kotlin/
+│   └── src/test/kotlin/
+├── udp-service/           # Existing: Uses reliable-udp as dependency
+└── app/                   # Existing: Demo app
+```
+
+### Code Attribution Requirements
+
+When borrowing or adapting code from external sources:
+
+1. **Source reference**: Include a comment with the original file URL
+2. **License reference**: Include the license type and link to LICENSE file
+3. **Modification note**: Document what was changed from the original
+
+Example:
+```kotlin
+/**
+ * Adapted from Quincy QUIC implementation.
+ *
+ * Original: https://github.com/protocol7/quincy/blob/master/quic/src/.../PacketBuffer.java
+ * License: Apache 2.0 (https://github.com/protocol7/quincy/blob/master/LICENSE)
+ *
+ * Modifications:
+ * - Ported from Java to Kotlin
+ * - Simplified for connectionless UDP (removed encryption levels)
+ * - Added coroutine support
+ */
+```
+
 ### Why UDP (Not TCP)?
 
 - **Connectionless**: No handshake; devices send messages immediately
@@ -186,6 +225,8 @@ As a sender, I want to know when my message was delivered.
 - **FR-008**: System MUST preserve existing packet format (appId prefix) in payload
 - **FR-009**: System MUST provide delivery confirmation callback to senders
 - **FR-010**: Python sender tool MUST implement the reliable protocol
+- **FR-011**: Implementation MUST be a standalone Gradle module (`:reliable-udp`)
+- **FR-012**: Borrowed code MUST include source URL, license reference, and modification notes
 
 ### Non-Functional Requirements
 
