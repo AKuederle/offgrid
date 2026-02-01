@@ -60,18 +60,36 @@ As a developer, I want to scroll through the history of all received packets so 
 
 ---
 
-### User Story 4 - Clear Message History (Priority: P3)
+### User Story 4 - Handle Maximum Size UDP Packets (Priority: P2)
 
-As a developer, I want to clear all stored messages so that I can start fresh for new testing sessions.
+As a developer, I want to verify the system handles maximum-size UDP packets (64KB) so that I know the storage works for all valid UDP datagrams.
 
-**Why this priority**: Nice-to-have for testing workflows but not critical for proving persistence works.
+**Why this priority**: Edge case validation is important for robustness, but not blocking for core persistence proof.
 
-**Independent Test**: With messages stored, tap "Clear All", confirm empty log, verify new messages still work.
+**Independent Test**: Send a 64KB UDP packet, verify it is stored and can be viewed in full.
 
 **Acceptance Scenarios**:
 
-1. **Given** messages exist in storage, **When** I tap "Clear All", **Then** all messages are deleted and the log shows empty.
-2. **Given** I cleared messages, **When** new packets arrive, **Then** they are stored normally.
+1. **Given** the service is running, **When** I send a 64KB UDP packet (maximum UDP size), **Then** the packet is stored completely without truncation.
+2. **Given** a 64KB packet is stored, **When** I view packet details, **Then** I can see the complete payload (with scrolling if needed).
+3. **Given** multiple large packets are stored, **When** I scroll through the list, **Then** the app remains responsive (<100ms scroll lag).
+
+---
+
+### User Story 5 - Reset Storage for Testing (Priority: P3)
+
+As a developer, I want to completely erase all stored data so that I can start fresh for new testing sessions with a clean database.
+
+**Why this priority**: Nice-to-have for testing workflows but not critical for proving persistence works.
+
+**Independent Test**: With service stopped and messages stored, tap "Erase All Data", confirm storage is cleared, restart service and verify clean state.
+
+**Acceptance Scenarios**:
+
+1. **Given** the service is stopped, **When** I tap "Erase All Data", **Then** all stored messages are permanently deleted and storage is reset.
+2. **Given** the service is running, **When** I look at the "Erase All Data" button, **Then** it is disabled/grayed out (cannot erase while service active).
+3. **Given** I erased all data, **When** I start the service and receive new packets, **Then** they are stored normally in fresh storage.
+4. **Given** I erased all data, **When** I check the app, **Then** the message count shows zero and list is empty.
 
 ---
 
@@ -80,8 +98,8 @@ As a developer, I want to clear all stored messages so that I can start fresh fo
 - What happens when storage is nearly full (device low on space)?
 - How does the system handle corrupted database records?
 - What happens if a packet arrives during database migration?
-- How are very large packets (near 64KB UDP max) handled in storage?
 - What happens if two packets arrive with identical timestamps?
+- What happens if user tries to erase data while service is starting/stopping?
 
 ## Requirements
 
@@ -94,20 +112,22 @@ As a developer, I want to clear all stored messages so that I can start fresh fo
 - **FR-003**: Storage MUST handle at least 10,000 packets without performance degradation.
 - **FR-004**: Each stored packet MUST include: raw payload, source IP, source port, and receive timestamp.
 - **FR-005**: Storage operations MUST NOT block packet reception (async writes).
+- **FR-006**: Storage MUST support maximum-size UDP packets (64KB / 65,507 bytes) without truncation.
 
 #### Message Log UI
 
-- **FR-006**: App MUST display stored packets in a scrollable list, newest first.
-- **FR-007**: App MUST load packet history from storage when opened (not just in-memory).
-- **FR-008**: App MUST update the list when new packets arrive without losing scroll position.
-- **FR-009**: App MUST provide ability to view full packet details (complete payload, not truncated).
-- **FR-010**: App MUST provide ability to clear all stored messages.
+- **FR-007**: App MUST display stored packets in a scrollable list, newest first.
+- **FR-008**: App MUST load packet history from storage when opened (not just in-memory).
+- **FR-009**: App MUST update the list when new packets arrive without losing scroll position.
+- **FR-010**: App MUST provide ability to view full packet details (complete payload, scrollable for large packets).
+- **FR-011**: App MUST provide "Erase All Data" button that completely resets storage.
+- **FR-012**: "Erase All Data" button MUST be disabled when the service is running (only enabled when stopped).
 
 #### Service Integration
 
-- **FR-011**: Foreground service MUST write packets to storage even when app UI is not running.
-- **FR-012**: Service MUST handle storage errors gracefully (log error, continue receiving).
-- **FR-013**: Service MUST survive app process termination (continues via foreground service).
+- **FR-013**: Foreground service MUST write packets to storage even when app UI is not running.
+- **FR-014**: Service MUST handle storage errors gracefully (log error, continue receiving).
+- **FR-015**: Service MUST survive app process termination (continues via foreground service).
 
 ### Key Entities
 
@@ -123,7 +143,9 @@ As a developer, I want to clear all stored messages so that I can start fresh fo
 - **SC-003**: App can store and display 10,000 packets without noticeable lag (<500ms to load history).
 - **SC-004**: Packet writes complete within 50ms average (measured via logs), not blocking reception.
 - **SC-005**: Service remains running (notification visible) for at least 1 hour with app backgrounded.
-- **SC-006**: Clear operation removes all packets and frees storage within 2 seconds.
+- **SC-006**: Erase operation removes all data and resets storage within 2 seconds.
+- **SC-007**: 64KB UDP packet is stored and retrievable without data loss or truncation.
+- **SC-008**: Scrolling through list with large packets (64KB each) maintains <100ms response time.
 
 ## Out of Scope
 
