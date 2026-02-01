@@ -142,6 +142,9 @@ Code MUST be structured for testability and maintainability:
 - Tests MUST be placed in the correct source set based on their dependencies
 - Avoid Robolectric; prefer pure unit tests or real on-device tests
 - No mixing: if a test needs Android, it goes in `androidTest/`
+- Do NOT test trivial code (getters, data classes, simple wiring)
+- If something cannot be unit tested (network I/O, device APIs), add a stub/TODO in `androidTest/` instead of faking it in unit tests
+- Unit tests should be fast (<1 second per test) - no real I/O or sleeps
 
 ## Development Workflow
 
