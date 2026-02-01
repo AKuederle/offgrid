@@ -243,6 +243,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun bindToService() {
+        if (bound) return
         val intent = Intent(this, UdpReceiverService::class.java)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
@@ -264,12 +265,16 @@ class MainActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             startService(intent)
         }
-        // Note: No need to call bindToService() here - onStart() already does it
+        // Bind to get state updates
+        bindToService()
     }
 
     private fun stopService() {
         Log.d(TAG, "Stopping service")
         try {
+            // Must unbind first - Android won't stop a bound service
+            unbindFromService()
+            receiver = null
             val serviceIntent = Intent(this, UdpReceiverService::class.java)
             stopService(serviceIntent)
         } catch (e: Exception) {
