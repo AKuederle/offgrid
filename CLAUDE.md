@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2026-02-01
 
 ## Active Technologies
+- Kotlin 1.9.22 + Jetpack Compose, Coroutines 1.7.3, Room 2.6.1 (002-message-persistence)
+- Room database with appId-indexed packets for multi-app filtering (002-message-persistence)
 
 - Kotlin 1.9.x, Python 3.10+ (001-udp-receiver-mvp)
 
@@ -66,6 +68,7 @@ cd tools/udp-sender && ruff check .
 Kotlin 1.9.x, Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 002-message-persistence: Added Room 2.6.1 persistence with appId prefix filtering, packet detail view, erase functionality
 
 - 001-udp-receiver-mvp: Added Kotlin 1.9.x, Python 3.10+
 
