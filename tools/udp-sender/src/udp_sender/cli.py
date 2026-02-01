@@ -18,23 +18,27 @@ def main(ctx: click.Context) -> None:
 @main.command()
 @click.option("-h", "--host", required=True, help="Target hostname or IP address")
 @click.option("-p", "--port", default=5000, type=int, help="Target UDP port")
+@click.option("-a", "--app-id", default=None, help="App ID prefix (e.g., 'broker')")
 @click.option("-m", "--message", required=True, help="Message to send")
-def send(host: str, port: int, message: str) -> None:
+def send(host: str, port: int, app_id: str | None, message: str) -> None:
     """Send a single UDP packet."""
-    sender = UdpSender(host, port)
+    sender = UdpSender(host, port, app_id=app_id)
     sender.send(message)
-    click.echo(f"Sent message to {host}:{port}")
+    prefix = f" (appId={app_id})" if app_id else ""
+    click.echo(f"Sent message to {host}:{port}{prefix}")
 
 
 @main.command()
 @click.option("-h", "--host", required=True, help="Target hostname or IP address")
 @click.option("-p", "--port", default=5000, type=int, help="Target UDP port")
+@click.option("-a", "--app-id", default=None, help="App ID prefix (e.g., 'broker')")
 @click.option("-r", "--rate", default=100, type=int, help="Packets per second")
 @click.option("-d", "--duration", default=10, type=int, help="Duration in seconds")
-def flood(host: str, port: int, rate: int, duration: int) -> None:
+def flood(host: str, port: int, app_id: str | None, rate: int, duration: int) -> None:
     """Send packets at rate for duration."""
-    sender = UdpSender(host, port)
-    click.echo(f"Flooding {host}:{port} at {rate} pps for {duration}s...")
+    sender = UdpSender(host, port, app_id=app_id)
+    prefix = f" (appId={app_id})" if app_id else ""
+    click.echo(f"Flooding {host}:{port}{prefix} at {rate} pps for {duration}s...")
     count = sender.flood(rate=rate, duration=duration)
     click.echo(f"Sent {count} packets")
 
@@ -42,10 +46,12 @@ def flood(host: str, port: int, rate: int, duration: int) -> None:
 @main.command()
 @click.option("-h", "--host", required=True, help="Target hostname or IP address")
 @click.option("-p", "--port", default=5000, type=int, help="Target UDP port")
-def interactive(host: str, port: int) -> None:
+@click.option("-a", "--app-id", default=None, help="App ID prefix (e.g., 'broker')")
+def interactive(host: str, port: int, app_id: str | None) -> None:
     """Interactive mode - send each line of input as a packet."""
-    sender = UdpSender(host, port)
-    click.echo(f"Interactive mode: sending to {host}:{port}")
+    sender = UdpSender(host, port, app_id=app_id)
+    prefix = f" (appId={app_id})" if app_id else ""
+    click.echo(f"Interactive mode: sending to {host}:{port}{prefix}")
     click.echo("Enter messages (Ctrl+D to exit):")
 
     for line in sys.stdin:

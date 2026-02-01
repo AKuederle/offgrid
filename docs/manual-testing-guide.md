@@ -50,43 +50,24 @@ On Android 13+, you may need to grant notification permission when prompted, or 
 
 ### 2. Send a Test Packet
 
-Packets must include an **appId prefix** in this format:
-```
-[length byte][appId bytes][payload bytes]
-```
+Packets must include an **appId prefix**. For the UDP Broker app, use `--app-id broker`.
 
-For the UDP Broker app, the appId is `broker` (6 bytes).
+#### Option A: UDP Sender Tool (Recommended)
 
-#### Option A: Python Script (Recommended)
-
-```python
-#!/usr/bin/env python3
-"""Send a test packet to the UDP Broker app."""
-import socket
-
-def send_packet(host: str, port: int, app_id: str, message: str):
-    """Send a packet with appId prefix."""
-    app_id_bytes = app_id.encode('utf-8')
-    payload = message.encode('utf-8')
-
-    # Format: [length][appId][payload]
-    packet = bytes([len(app_id_bytes)]) + app_id_bytes + payload
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(packet, (host, port))
-    sock.close()
-    print(f"Sent: appId='{app_id}', message='{message}'")
-
-# Usage - replace with your device IP
-send_packet("192.168.1.100", 5000, "broker", "Hello from Python!")
-```
-
-Save as `send_test.py` and run:
 ```bash
-python3 send_test.py
+cd tools/udp-sender
+
+# Send a single message
+uv run udp-sender send -h 192.168.1.100 -a broker -m "Hello from CLI!"
+
+# Interactive mode - type messages and press Enter
+uv run udp-sender interactive -h 192.168.1.100 -a broker
+
+# Flood test - 100 packets/sec for 10 seconds
+uv run udp-sender flood -h 192.168.1.100 -a broker -r 100 -d 10
 ```
 
-#### Option B: One-liner with Python
+#### Option B: Python One-liner
 
 ```bash
 python3 -c "
@@ -101,10 +82,6 @@ print('Sent!')
 #### Option C: Using netcat with hex
 
 ```bash
-# broker = 0x62 0x72 0x6f 0x6b 0x65 0x72 (6 bytes)
-# Prefix: 0x06 (length=6)
-# Message: "Hi" = 0x48 0x69
-
 printf '\x06broker%s' "Hello from netcat!" | nc -u -w1 192.168.1.100 5000
 ```
 
