@@ -23,7 +23,7 @@ import java.net.InetSocketAddress
 /**
  * Stage 2: Emulator + Device Tests - Packet persistence integration.
  *
- * Tests T013-T015: Service persistence integration.
+ * Tests T013, T015: Service persistence integration.
  */
 @RunWith(AndroidJUnit4::class)
 class PersistenceIntegrationTest {
@@ -66,35 +66,6 @@ class PersistenceIntegrationTest {
         assertTrue(payload.contentEquals(entity.data))
         assertEquals("192.168.1.100", entity.sourceIp)
         assertEquals(5000, entity.sourcePort)
-    }
-
-    // T014: Test packets retrievable after database close/reopen
-    @Test
-    fun packetsRetrievable_afterDatabaseReopen() = runTest {
-        val dao = database.packetDao()
-
-        // Insert a packet
-        val packet = PacketEntity(
-            appId = "app1",
-            data = "test data".toByteArray(),
-            sourceIp = "10.0.0.1",
-            sourcePort = 5000,
-            timestamp = System.currentTimeMillis()
-        )
-        val id = dao.insertPacket(packet)
-
-        // Close database
-        database.close()
-
-        // Reopen database
-        database = Room.inMemoryDatabaseBuilder(context, PacketDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        val newDao = database.packetDao()
-
-        // Note: In-memory database loses data on close, this test verifies
-        // the pattern works. Real persistence test requires on-disk database.
-        // For actual persistence, the singleton pattern in PacketDatabase handles this.
     }
 
     // T015: Test high-rate packet persistence (100/sec burst)
