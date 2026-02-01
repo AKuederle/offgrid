@@ -106,7 +106,7 @@
 
 - [X] T031 Unit test for UdpSocket packet emission via Flow in `udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt`
 - [X] T032 [P] Unit test for packet log max 100 entries in `app/src/test/kotlin/com/example/udpbroker/PacketLogTest.kt`
-- [ ] T033 [P] On-device test for UDP packet reception in `udp-service/src/androidTest/kotlin/com/example/udpservice/UdpReceptionTest.kt`
+- [X] T033 [P] On-device test for UDP packet reception in `udp-service/src/androidTest/kotlin/com/example/udpservice/UdpReceptionTest.kt`
 
 ### Implementation
 
@@ -158,7 +158,7 @@
 ### Tests (TDD - Write First, Ensure They FAIL)
 
 - [X] T048 Unit test for getLocalIpAddresses() filtering in `udp-service/src/test/kotlin/com/example/udpservice/NetworkUtilsTest.kt`
-- [ ] T049 [P] On-device test for IP address display in `app/src/androidTest/kotlin/com/example/udpbroker/NetworkInfoDisplayTest.kt`
+- [X] T049 [P] On-device test for IP address display in `udp-service/src/androidTest/kotlin/com/example/udpservice/NetworkInfoDeviceTest.kt` (@DeviceOnly)
 
 ### Implementation
 

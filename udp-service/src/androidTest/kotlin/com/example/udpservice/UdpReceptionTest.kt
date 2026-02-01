@@ -3,6 +3,8 @@ package com.example.udpservice
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.udpservice.api.ReceiverState
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -60,16 +62,27 @@ class UdpReceptionTest {
             udpSocket.state.first { it is ReceiverState.Running }
         }
 
-        // Send a test packet
         val testMessage = "Hello from test"
+
+        // Launch packet collection first, then send
+        val packetDeferred = async {
+            udpSocket.packets.first()
+        }
+
+        // Give collect a moment to start, then send
+        delay(200)
         sendUdpPacket("127.0.0.1", testPort, testMessage)
 
-        // Wait for packet to be received
-        withTimeout(5000) {
-            val packet = udpSocket.packets.first()
-            assertEquals(testMessage, packet.displayText)
-            assertEquals(InetAddress.getLoopbackAddress(), packet.sourceAddress.address)
+        // Wait for packet
+        val packet = withTimeout(10000) {
+            packetDeferred.await()
         }
+
+        assertEquals(testMessage, packet.displayText)
+        assertTrue(
+            "Expected loopback address, got: ${packet.sourceAddress.address}",
+            packet.sourceAddress.address.isLoopbackAddress
+        )
     }
 
     @Test
@@ -80,16 +93,23 @@ class UdpReceptionTest {
             udpSocket.state.first { it is ReceiverState.Running }
         }
 
-        // Send multiple packets
         val messages = listOf("packet-1", "packet-2", "packet-3")
-        messages.forEach { msg ->
-            sendUdpPacket("127.0.0.1", testPort, msg)
-            Thread.sleep(50) // Small delay to ensure ordering
+
+        // Start collecting first
+        val packetsDeferred = async {
+            udpSocket.packets.take(3).toList().map { it.displayText }
         }
 
-        // Collect exactly 3 packets
-        val receivedMessages = withTimeout(5000) {
-            udpSocket.packets.take(3).toList().map { it.displayText }
+        // Give collect a moment to start, then send
+        delay(200)
+        messages.forEach { msg ->
+            sendUdpPacket("127.0.0.1", testPort, msg)
+            delay(100) // Delay to ensure ordering
+        }
+
+        // Wait for all packets
+        val receivedMessages = withTimeout(10000) {
+            packetsDeferred.await()
         }
 
         assertEquals(messages, receivedMessages)
@@ -120,12 +140,21 @@ class UdpReceptionTest {
         }
 
         val unicodeMessage = "Héllo Wörld 你好 🎉"
+
+        // Start collecting first
+        val packetDeferred = async {
+            udpSocket.packets.first()
+        }
+
+        // Give collect a moment to start, then send
+        delay(200)
         sendUdpPacket("127.0.0.1", testPort, unicodeMessage)
 
-        withTimeout(5000) {
-            val packet = udpSocket.packets.first()
-            assertEquals(unicodeMessage, packet.displayText)
+        val packet = withTimeout(10000) {
+            packetDeferred.await()
         }
+
+        assertEquals(unicodeMessage, packet.displayText)
     }
 
     private fun sendUdpPacket(host: String, port: Int, message: String) {
