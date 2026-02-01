@@ -9,6 +9,10 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.udpservice.api.UdpPacket
+import com.example.udpservice.persistence.PacketDatabase
+import com.example.udpservice.persistence.PacketDao
+import com.example.udpservice.persistence.PacketEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +36,10 @@ class UdpReceiverService : Service() {
     private val udpSocket = UdpSocket()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    // Database for packet persistence
+    private val database by lazy { PacketDatabase.getInstance(applicationContext) }
+    private val packetDao: PacketDao by lazy { database.packetDao() }
+
     companion object {
         private const val TAG = "UdpReceiverService"
         private const val NOTIFICATION_CHANNEL_ID = "udp_receiver_channel"
@@ -51,6 +59,32 @@ class UdpReceiverService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        setupPersistence()
+    }
+
+    /**
+     * Set up packet persistence callback.
+     * When a valid packet is received, persist it to the database.
+     */
+    private fun setupPersistence() {
+        udpSocket.onPacketReceived = { packet, appId, payload ->
+            persistPacket(packet, appId, payload)
+        }
+    }
+
+    /**
+     * Persist a received packet to the database.
+     * Runs in the service scope to not block the receive loop.
+     */
+    private suspend fun persistPacket(packet: UdpPacket, appId: String, payload: ByteArray) {
+        try {
+            val entity = packet.toEntity(appId, payload)
+            packetDao.insertPacket(entity)
+            Log.d(TAG, "Persisted packet: appId=$appId, size=${payload.size}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to persist packet", e)
+            // Continue receiving - don't let DB errors stop service
+        }
     }
 
     override fun onBind(intent: Intent): IBinder = LocalBinder()

@@ -1,5 +1,6 @@
 package com.example.udpservice.api
 
+import com.example.udpservice.persistence.PacketEntity
 import java.net.InetSocketAddress
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
@@ -75,4 +76,37 @@ data class UdpPacket(
         result = 31 * result + timestamp.hashCode()
         return result
     }
+
+    /**
+     * Convert this UdpPacket to a PacketEntity for database persistence.
+     * Parses the length-prefixed appId from the packet data.
+     *
+     * @return PacketEntity if appId prefix is valid, null otherwise
+     */
+    fun toEntity(): PacketEntity? {
+        val parsed = PacketParser.parse(this.data) ?: return null
+        return PacketEntity(
+            appId = parsed.appId,
+            data = parsed.payload,
+            sourceIp = this.sourceAddress.hostString,
+            sourcePort = this.sourceAddress.port,
+            timestamp = this.timestamp
+        )
+    }
+
+    /**
+     * Convert this UdpPacket to a PacketEntity with a pre-parsed appId and payload.
+     * Use this when you've already validated the appId against registered apps.
+     *
+     * @param appId The validated application identifier
+     * @param payload The packet payload (without appId prefix)
+     * @return PacketEntity for persistence
+     */
+    fun toEntity(appId: String, payload: ByteArray): PacketEntity = PacketEntity(
+        appId = appId,
+        data = payload,
+        sourceIp = this.sourceAddress.hostString,
+        sourcePort = this.sourceAddress.port,
+        timestamp = this.timestamp
+    )
 }
