@@ -1,17 +1,22 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.0.1 (PATCH: Clarify test organization requirements)
+Version change: 1.0.1 → 1.1.0 (MINOR: Add 3-stage testing model)
 
 Modified sections:
-- Testing on Android: Added mandatory test grouping into unit tests and on-device tests
+- Testing on Android: Expanded from 2-stage to 3-stage testing model
+  - Stage 1: Unit tests (JVM)
+  - Stage 2: Emulator tests (CI-compatible instrumented)
+  - Stage 3: Physical device tests (device-only, tagged @DeviceOnly)
 
 Templates requiring updates:
 - .specify/templates/plan-template.md: ✅ Compatible
 - .specify/templates/spec-template.md: ✅ Compatible
 - .specify/templates/tasks-template.md: ✅ Compatible
 
-Follow-up TODOs: None
+Follow-up TODOs:
+- Create @DeviceOnly annotation in test infrastructure
+- Update CI pipeline to run Stage 1 + Stage 2
 -->
 
 # Android UDP Service Constitution
@@ -124,27 +129,40 @@ Code MUST be structured for testability and maintainability:
 
 ### Testing on Android
 
-**Test Organization**: All tests MUST be grouped into two distinct categories:
+**Test Organization**: All tests MUST be grouped into three distinct stages:
 
-1. **Unit Tests** (`test/` source set)
+1. **Stage 1: Unit Tests** (`test/` source set)
    - Pure Kotlin logic tests that run on JVM
    - JUnit 5 + MockK
    - No Android framework dependencies
-   - Fast execution, run locally
+   - Fast execution (<1 second per test), no real I/O or sleeps
+   - Run command: `./gradlew test`
 
-2. **On-Device Tests** (`androidTest/` source set)
-   - Instrumented tests requiring Android runtime
-   - AndroidX Test + Espresso for UI behavior
-   - Integration tests that need real Android APIs
-   - MUST run on actual device or emulator
+2. **Stage 2: Emulator Tests** (`androidTest/` source set, CI-compatible)
+   - Instrumented tests that run on Android emulator
+   - Service lifecycle, UI state, localhost networking
+   - Tests MUST work on standard CI emulator (no special hardware)
+   - Use `127.0.0.1` for network loopback tests
+   - Run command: `./gradlew connectedAndroidTest`
 
-**Rules**:
-- Tests MUST be placed in the correct source set based on their dependencies
-- Avoid Robolectric; prefer pure unit tests or real on-device tests
-- No mixing: if a test needs Android, it goes in `androidTest/`
+3. **Stage 3: Physical Device Tests** (`androidTest/` source set, device-only)
+   - Tests requiring real hardware or network conditions
+   - Real WiFi IP detection, boot receiver, battery behavior
+   - Tagged with `@DeviceOnly` annotation for filtering
+   - Run manually or in dedicated device lab
+   - Run command: `./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.example.udpservice.test.DeviceOnly`
+
+**Test Placement Rules**:
+- Tests MUST be placed in the correct source set based on dependencies
+- Emulator tests MUST NOT depend on real network IPs or device-specific hardware
+- Physical device tests MUST be tagged `@DeviceOnly` for CI exclusion
+- Avoid Robolectric; prefer pure unit tests or real instrumented tests
 - Do NOT test trivial code (getters, data classes, simple wiring)
-- If something cannot be unit tested (network I/O, device APIs), add a stub/TODO in `androidTest/` instead of faking it in unit tests
-- Unit tests should be fast (<1 second per test) - no real I/O or sleeps
+
+**CI Pipeline**:
+- Stage 1 (Unit): Runs on every commit, blocks merge on failure
+- Stage 2 (Emulator): Runs on every commit, blocks merge on failure
+- Stage 3 (Device): Runs manually or on release branches only
 
 ## Development Workflow
 
@@ -184,4 +202,4 @@ This constitution documents the development principles for Android UDP Service. 
 
 The constitution serves as guidance rather than rigid law. When principles conflict with practical reality, document the deviation and its justification. If workarounds become frequent, revisit the relevant principle.
 
-**Version**: 1.0.1 | **Ratified**: 2026-02-01 | **Last Amended**: 2026-02-01
+**Version**: 1.1.0 | **Ratified**: 2026-02-01 | **Last Amended**: 2026-02-01
