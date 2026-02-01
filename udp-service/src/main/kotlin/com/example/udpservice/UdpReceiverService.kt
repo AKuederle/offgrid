@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,7 @@ class UdpReceiverService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     companion object {
+        private const val TAG = "UdpReceiverService"
         private const val NOTIFICATION_CHANNEL_ID = "udp_receiver_channel"
         private const val NOTIFICATION_CHANNEL_NAME = "UDP Receiver"
         private const val NOTIFICATION_ID = 1
@@ -54,21 +56,19 @@ class UdpReceiverService : Service() {
     override fun onBind(intent: Intent): IBinder = LocalBinder()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.d("UDPService", "onStartCommand called")
         val port = intent?.getIntExtra("port", DEFAULT_PORT) ?: DEFAULT_PORT
-        android.util.Log.d("UDPService", "Port: $port")
+        Log.d(TAG, "Starting on port $port")
 
         // Start foreground with notification
         val notification = createForegroundNotification(port)
         startForeground(NOTIFICATION_ID, notification)
-        android.util.Log.d("UDPService", "Foreground started")
 
         // Start the UDP socket
         serviceScope.launch {
             try {
                 udpSocket.start(port)
             } catch (e: Exception) {
-                android.util.Log.e("UDPService", "Failed to start socket", e)
+                Log.e(TAG, "Failed to start socket", e)
                 stopSelf()
             }
         }
@@ -77,6 +77,7 @@ class UdpReceiverService : Service() {
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "Destroying service")
         super.onDestroy()
         udpSocket.stop()
         serviceScope.cancel()

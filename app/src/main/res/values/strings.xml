@@ -7,4 +7,7 @@
     <string name="status_starting">Starting…</string>
     <string name="status_running">Listening on port %1$d</string>
     <string name="status_error">Error: %1$s</string>
+    <string name="permission_control_service_label">Control UDP Service</string>
+    <string name="permission_control_service_description">Allows starting and stopping the UDP receiver service</string>
+    <string name="notification_permission_required">Notification permission is required to show service status</string>
 </resources>

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -178,12 +180,17 @@ fun BrokerScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Card(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
                 ) {
                     LazyColumn(
                         modifier = Modifier.padding(8.dp)
                     ) {
-                        items(packets) { packet ->
+                        items(
+                            items = packets,
+                            key = { it.timestamp }
+                        ) { packet ->
                             PacketItem(packet)
                             HorizontalDivider()
                         }
@@ -196,9 +203,11 @@ fun BrokerScreen(
 
 @Composable
 private fun PacketItem(packet: UdpPacket) {
-    val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-    val timeString = timeFormat.format(Date(packet.timestamp))
-    val sourceString = "${packet.sourceAddress.address.hostAddress}:${packet.sourceAddress.port}"
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()) }
+    val timeString = remember(packet.timestamp) { timeFormat.format(Date(packet.timestamp)) }
+    val sourceString = remember(packet.sourceAddress) {
+        "${packet.sourceAddress.address.hostAddress}:${packet.sourceAddress.port}"
+    }
 
     Column(
         modifier = Modifier

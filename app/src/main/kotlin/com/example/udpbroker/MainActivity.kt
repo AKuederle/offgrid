@@ -8,6 +8,8 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +29,7 @@ import com.example.udpservice.UdpReceiverService
 import com.example.udpservice.api.ReceiverState as ServiceReceiverState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +38,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private var receiver: UdpReceiver? = null
     private var bound = false
     private val activityScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -46,11 +54,12 @@ class MainActivity : ComponentActivity() {
     private val _uiState = MutableStateFlow(ReceiverState())
     private val uiState: StateFlow<ReceiverState> = _uiState.asStateFlow()
 
-    private var packetCollectionJob: kotlinx.coroutines.Job? = null
-    private var stateCollectionJob: kotlinx.coroutines.Job? = null
+    private var packetCollectionJob: Job? = null
+    private var stateCollectionJob: Job? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            Log.d(TAG, "Service connected")
             serviceBinder = binder as? UdpReceiverService.LocalBinder
             receiver = serviceBinder?.getReceiver()
             bound = true
@@ -59,6 +68,7 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            Log.d(TAG, "Service disconnected")
             packetCollectionJob?.cancel()
             packetCollectionJob = null
             stateCollectionJob?.cancel()
@@ -102,7 +112,14 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        // Handle permission result
+        if (!isGranted) {
+            Log.w(TAG, "Notification permission denied")
+            Toast.makeText(
+                this,
+                R.string.notification_permission_required,
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,7 +143,7 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(ServiceControlReceiver.EXTRA_AUTO_START, false) == true) {
             val port = intent.getIntExtra(ServiceControlReceiver.EXTRA_PORT, 5000)
-            android.util.Log.d("UDPBroker", "Auto-starting service on port $port from intent")
+            Log.d(TAG, "Auto-starting service on port $port from intent")
             startService(port)
         }
     }
@@ -184,26 +201,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startService(port: Int = 5000) {
-        android.util.Log.d("UDPBroker", "startService() called with port $port")
+        Log.d(TAG, "Starting service on port $port")
         val intent = Intent(this, UdpReceiverService::class.java)
         intent.putExtra("port", port)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            android.util.Log.d("UDPBroker", "Starting foreground service")
             startForegroundService(intent)
         } else {
+            @Suppress("DEPRECATION")
             startService(intent)
         }
-
-        // Bind to service to get receiver reference
-        bindToService()
+        // Note: No need to call bindToService() here - onStart() already does it
     }
 
     private fun stopService() {
+        Log.d(TAG, "Stopping service")
         receiver?.let {
             try {
                 it.stop()
             } catch (e: Exception) {
-                // Ignore
+                Log.e(TAG, "Error stopping service", e)
             }
         }
     }

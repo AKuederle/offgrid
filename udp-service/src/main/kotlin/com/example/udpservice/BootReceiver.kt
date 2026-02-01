@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 
 /**
  * Broadcast receiver that starts the UDP service when the device boots.
@@ -28,6 +29,7 @@ import android.os.Build
 class BootReceiver : BroadcastReceiver() {
 
     companion object {
+        private const val TAG = "BootReceiver"
         private const val DEFAULT_PORT = 5000
         const val PREF_AUTOSTART = "udp_autostart"
         const val PREF_PORT = "udp_port"
@@ -36,22 +38,25 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
-        android.util.Log.d("BootReceiver", "Boot completed, checking if autostart enabled")
+        Log.d(TAG, "Boot completed, checking if autostart enabled")
 
         val prefs = context.getSharedPreferences("udp_service", Context.MODE_PRIVATE)
         val autoStart = prefs.getBoolean(PREF_AUTOSTART, false)
         val port = prefs.getInt(PREF_PORT, DEFAULT_PORT)
 
         if (autoStart) {
-            android.util.Log.d("BootReceiver", "Starting UDP service on port $port")
+            Log.d(TAG, "Starting UDP service on port $port")
             val serviceIntent = Intent(context, UdpReceiverService::class.java).apply {
                 putExtra("port", port)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent)
             } else {
+                @Suppress("DEPRECATION")
                 context.startService(serviceIntent)
             }
+        } else {
+            Log.d(TAG, "Autostart disabled, not starting service")
         }
     }
 }
