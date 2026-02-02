@@ -14,7 +14,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-01
 app/                      # Android app module
 udp-service/              # UDP service library module (depends on reliable-udp)
 reliable-udp/             # Reliable UDP transport library (Kotlin JVM)
-tools/udp-sender/         # Python test tool (with --reliable flag)
+tools/udp-sender/         # Python test tool (always uses reliable UDP)
 specs/                    # Feature specifications
 ```
 
@@ -61,7 +61,7 @@ Launch: `/opt/android-studio/bin/studio.sh`
 
 # Python tool
 cd tools/udp-sender && uv run udp-sender --help
-cd tools/udp-sender && uv run udp-sender send -h HOST -m "message" --reliable  # Reliable mode
+cd tools/udp-sender && uv run udp-sender send -h HOST -p 5000 -a "broker" -m "message"
 cd tools/udp-sender && uv run pytest
 cd tools/udp-sender && uv run ruff check .
 ```
@@ -71,9 +71,17 @@ cd tools/udp-sender && uv run ruff check .
 Kotlin 1.9.x, Python 3.10+: Follow standard conventions
 
 ## Recent Changes
-- 003-reliable-transport: Added reliable-udp module with Selective Repeat ARQ, SACK, RFC 9002 RTT estimation, 64KB message fragmentation, delivery callbacks. Python tool updated with --reliable flag.
+- 003-reliable-transport: Added reliable-udp module with Selective Repeat ARQ, SACK, RFC 9002 RTT estimation, 64KB message fragmentation, delivery callbacks. Python tool and UdpSocket now always use reliable transport.
 - 002-message-persistence: Added Room 2.6.1 persistence with appId prefix filtering, packet detail view, erase functionality
 - 001-udp-receiver-mvp: Added Kotlin 1.9.x, Python 3.10+
 
 <!-- MANUAL ADDITIONS START -->
+## Testing with the Android App
+
+**Always use the app-id prefix** when sending messages to the Android app:
+```bash
+uv run udp-sender send -h <DEVICE_IP> -p 5000 -a "broker" -m "your message"
+```
+
+Messages without the `-a "broker"` prefix will be received but filtered out by the app's UI (it only displays messages matching its configured appId).
 <!-- MANUAL ADDITIONS END -->
