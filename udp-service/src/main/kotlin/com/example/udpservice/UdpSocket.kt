@@ -1,6 +1,8 @@
 package com.example.udpservice
 
 import android.util.Log
+import com.example.reliableudp.ReliableSocketImpl
+import com.example.reliableudp.SocketState
 import com.example.udpservice.api.PacketParser
 import com.example.udpservice.api.ReceiverState
 import com.example.udpservice.api.UdpPacket
@@ -16,24 +18,17 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.net.DatagramPacket
-import java.net.DatagramSocket
-import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Implementation of UdpReceiver that manages a UDP socket for receiving packets.
+ * Implementation of UdpReceiver using the reliable transport layer.
  *
- * This class handles the lifecycle of a UDP socket, including binding to a port,
- * receiving packets, and managing state transitions. Thread-safe via mutex.
+ * This class wraps ReliableSocketImpl and adapts it to the UdpReceiver interface,
+ * providing automatic retry, fragmentation/reassembly, and delivery confirmation
+ * while maintaining backward compatibility with existing code.
  *
- * @param ioDispatcher The dispatcher to use for blocking socket operations.
+ * @param ioDispatcher The dispatcher to use for socket operations.
  *                     Defaults to Dispatchers.IO.
  */
 class UdpSocket(
@@ -55,9 +50,9 @@ class UdpSocket(
     private val _registeredAppIds = ConcurrentHashMap.newKeySet<String>()
     override val registeredAppIds: Set<String> get() = _registeredAppIds.toSet()
 
-    private val stateMutex = Mutex()
-    private var socket: DatagramSocket? = null
-    private var receiveJob: Job? = null
+    private var reliableSocket: ReliableSocketImpl? = null
+    private var collectJob: Job? = null
+    private var stateCollectJob: Job? = null
     private var scope: CoroutineScope? = null
 
     /**
@@ -71,109 +66,114 @@ class UdpSocket(
             "Port must be between $MIN_PORT and $MAX_PORT, got $port"
         }
 
-        stateMutex.withLock {
-            when (val currentState = _state.value) {
-                is ReceiverState.Running -> {
-                    throw IllegalStateException("Cannot start: already running on port ${currentState.port}")
-                }
-                is ReceiverState.Starting -> {
-                    throw IllegalStateException("Cannot start: already starting")
-                }
-                else -> {
-                    _state.value = ReceiverState.Starting
-                }
+        when (val currentState = _state.value) {
+            is ReceiverState.Running -> {
+                throw IllegalStateException("Cannot start: already running on port ${currentState.port}")
+            }
+            is ReceiverState.Starting -> {
+                throw IllegalStateException("Cannot start: already starting")
+            }
+            else -> {
+                _state.value = ReceiverState.Starting
             }
         }
 
         try {
-            withContext(ioDispatcher) {
-                Log.d(TAG, "Creating socket on port $port")
-                val newSocket = DatagramSocket(port)
-                socket = newSocket
-                val boundPort = newSocket.localPort
-                Log.d(TAG, "Socket bound to port $boundPort")
+            Log.d(TAG, "Creating reliable socket on port $port")
+            val socket = ReliableSocketImpl(ioDispatcher = ioDispatcher)
+            reliableSocket = socket
 
-                // Get local addresses for display
-                val addresses = NetworkUtils.getLocalIpAddresses()
+            // Bind the reliable socket
+            socket.bind(port)
 
-                _state.value = ReceiverState.Running(boundPort, addresses)
+            // Create scope for message collection
+            val newScope = CoroutineScope(ioDispatcher + SupervisorJob())
+            scope = newScope
 
-                // Create a scope for the receive loop
-                val newScope = CoroutineScope(ioDispatcher + SupervisorJob())
-                scope = newScope
-
-                // Start the receive loop
-                Log.d(TAG, "Starting receive loop")
-                receiveJob = newScope.launch {
-                    receiveLoop(newSocket)
+            // Collect state changes from reliable socket
+            stateCollectJob = newScope.launch {
+                socket.state.collect { socketState ->
+                    val receiverState = mapSocketState(socketState)
+                    _state.value = receiverState
+                    Log.d(TAG, "State changed to: $receiverState")
                 }
             }
+
+            // Collect messages and convert to UdpPacket
+            collectJob = newScope.launch {
+                socket.messages.collect { message ->
+                    processReceivedMessage(message.payload, message.source, message.receivedAt)
+                }
+            }
+
+            Log.d(TAG, "Reliable socket started on port $port")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start socket", e)
             _state.value = ReceiverState.Error(e.message ?: "Unknown error")
-            socket?.close()
-            socket = null
+            reliableSocket?.close()
+            reliableSocket = null
         }
     }
 
-    private suspend fun receiveLoop(socket: DatagramSocket) {
-        Log.d(TAG, "Receive loop started")
-        val buffer = ByteArray(65535)
-
-        while (currentCoroutineContext().isActive && !socket.isClosed) {
-            try {
-                val packet = DatagramPacket(buffer, buffer.size)
-                socket.receive(packet) // Blocking call
-
-                val data = packet.data.copyOf(packet.length)
-                val sourceAddress = InetSocketAddress(packet.address, packet.port)
-
-                // Parse appId prefix
-                val parsed = PacketParser.parse(data)
-                if (parsed == null) {
-                    Log.d(TAG, "Dropped packet: invalid appId prefix from ${packet.address}:${packet.port}")
-                    continue
-                }
-
-                // Check if appId is registered
-                if (!_registeredAppIds.contains(parsed.appId)) {
-                    Log.d(TAG, "Dropped packet: unregistered appId '${parsed.appId}' from ${packet.address}:${packet.port}")
-                    continue
-                }
-
-                Log.d(TAG, "Received packet: ${packet.length} bytes, appId='${parsed.appId}' from ${packet.address}:${packet.port}")
-
-                val udpPacket = UdpPacket(
-                    data = data,
-                    sourceAddress = sourceAddress
-                )
-
-                // Notify callback for persistence
-                onPacketReceived?.invoke(udpPacket, parsed.appId, parsed.payload)
-
-                _packets.emit(udpPacket)
-            } catch (e: Exception) {
-                // Socket closed or error - exit loop
-                if (!socket.isClosed) {
-                    Log.e(TAG, "Receive error", e)
-                    _state.value = ReceiverState.Error(e.message ?: "Receive error")
-                }
-                break
-            }
+    private suspend fun processReceivedMessage(
+        data: ByteArray,
+        source: java.net.InetSocketAddress,
+        timestamp: Long
+    ) {
+        // Parse appId prefix
+        val parsed = PacketParser.parse(data)
+        if (parsed == null) {
+            Log.d(TAG, "Dropped message: invalid appId prefix from ${source.address}:${source.port}")
+            return
         }
-        Log.d(TAG, "Receive loop ended")
+
+        // Check if appId is registered
+        if (!_registeredAppIds.contains(parsed.appId)) {
+            Log.d(TAG, "Dropped message: unregistered appId '${parsed.appId}' from ${source.address}:${source.port}")
+            return
+        }
+
+        Log.d(TAG, "Received message: ${data.size} bytes, appId='${parsed.appId}' from ${source.address}:${source.port}")
+
+        val udpPacket = UdpPacket(
+            data = data,
+            sourceAddress = source,
+            timestamp = timestamp
+        )
+
+        // Notify callback for persistence
+        onPacketReceived?.invoke(udpPacket, parsed.appId, parsed.payload)
+
+        _packets.emit(udpPacket)
+    }
+
+    private fun mapSocketState(socketState: SocketState): ReceiverState {
+        return when (socketState) {
+            is SocketState.Unbound -> ReceiverState.Stopped
+            is SocketState.Binding -> ReceiverState.Starting
+            is SocketState.Bound -> {
+                val addresses = NetworkUtils.getLocalIpAddresses()
+                ReceiverState.Running(socketState.port, addresses)
+            }
+            is SocketState.Error -> ReceiverState.Error(socketState.message)
+            is SocketState.Closed -> ReceiverState.Stopped
+        }
     }
 
     override fun stop() {
         Log.d(TAG, "Stopping socket")
-        receiveJob?.cancel()
-        receiveJob = null
+
+        collectJob?.cancel()
+        collectJob = null
+
+        stateCollectJob?.cancel()
+        stateCollectJob = null
 
         scope?.cancel()
         scope = null
 
-        socket?.close()
-        socket = null
+        reliableSocket?.close()
+        reliableSocket = null
 
         _state.value = ReceiverState.Stopped
         Log.d(TAG, "Socket stopped")

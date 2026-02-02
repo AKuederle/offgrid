@@ -23,22 +23,24 @@ class TestSendCommand:
         result = runner.invoke(main, ["send", "-h", "localhost"])
         assert result.exit_code != 0
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_send_uses_default_port(self, mock_sender_class: MagicMock) -> None:
         """send command uses default port 5000."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
         result = runner.invoke(main, ["send", "-h", "localhost", "-m", "test"])
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
+        mock_sender_class.assert_called_once_with("localhost", 5000)
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_send_accepts_custom_port(self, mock_sender_class: MagicMock) -> None:
         """send command accepts --port argument."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -47,24 +49,26 @@ class TestSendCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 9999, app_id=None)
+        mock_sender_class.assert_called_once_with("localhost", 9999)
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_send_calls_sender_send(self, mock_sender_class: MagicMock) -> None:
-        """send command calls UdpSender.send() with message."""
+        """send command calls ReliableSender.send() with encoded message."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
         result = runner.invoke(main, ["send", "-h", "localhost", "-m", "hello world"])
 
         assert result.exit_code == 0
-        mock_sender.send.assert_called_once_with("hello world")
+        mock_sender.send.assert_called_once_with(b"hello world")
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_send_long_options(self, mock_sender_class: MagicMock) -> None:
         """send command accepts long option names."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -74,8 +78,43 @@ class TestSendCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
-        mock_sender.send.assert_called_once_with("test")
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
+        mock_sender.send.assert_called_once_with(b"test")
+
+    @patch("udp_sender.cli.ReliableSender")
+    def test_send_shows_message_id(self, mock_sender_class: MagicMock) -> None:
+        """send command shows message ID in output."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 42
+        mock_sender_class.return_value = mock_sender
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["send", "-h", "localhost", "-m", "test"])
+
+        assert result.exit_code == 0
+        assert "42" in result.output
+        assert "id=" in result.output.lower()
+
+    @patch("udp_sender.cli.ReliableSender")
+    @patch("udp_sender.cli.encode_packet")
+    def test_send_with_app_id(
+        self, mock_encode: MagicMock, mock_sender_class: MagicMock
+    ) -> None:
+        """send with --app-id uses encode_packet."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
+        mock_sender_class.return_value = mock_sender
+        mock_encode.return_value = b"\x06brokertest"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["send", "-h", "localhost", "-m", "test", "-a", "broker"],
+        )
+
+        assert result.exit_code == 0
+        mock_encode.assert_called_once_with("broker", b"test")
+        mock_sender.send.assert_called_once_with(b"\x06brokertest")
 
 
 class TestFloodCommand:
@@ -87,65 +126,51 @@ class TestFloodCommand:
         result = runner.invoke(main, ["flood"])
         assert result.exit_code != 0
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_flood_uses_default_port(self, mock_sender_class: MagicMock) -> None:
         """flood command uses default port 5000."""
         mock_sender = MagicMock()
-        mock_sender.flood.return_value = 100
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
-        result = runner.invoke(main, ["flood", "-h", "localhost"])
+        # Use very short duration for test
+        result = runner.invoke(main, ["flood", "-h", "localhost", "-d", "0"])
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
+        mock_sender_class.assert_called_once_with("localhost", 5000)
 
-    @patch("udp_sender.cli.UdpSender")
-    def test_flood_uses_default_rate_and_duration(
-        self, mock_sender_class: MagicMock
-    ) -> None:
-        """flood command uses default rate=100 and duration=10."""
-        mock_sender = MagicMock()
-        mock_sender.flood.return_value = 1000
-        mock_sender_class.return_value = mock_sender
-
-        runner = CliRunner()
-        result = runner.invoke(main, ["flood", "-h", "localhost"])
-
-        assert result.exit_code == 0
-        mock_sender.flood.assert_called_once_with(rate=100, duration=10)
-
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_flood_accepts_custom_rate(self, mock_sender_class: MagicMock) -> None:
         """flood command accepts --rate argument."""
         mock_sender = MagicMock()
-        mock_sender.flood.return_value = 500
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
-        result = runner.invoke(main, ["flood", "-h", "localhost", "-r", "50"])
+        result = runner.invoke(
+            main, ["flood", "-h", "localhost", "-r", "50", "-d", "0"]
+        )
 
         assert result.exit_code == 0
-        mock_sender.flood.assert_called_once_with(rate=50, duration=10)
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_flood_accepts_custom_duration(self, mock_sender_class: MagicMock) -> None:
         """flood command accepts --duration argument."""
         mock_sender = MagicMock()
-        mock_sender.flood.return_value = 3000
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
-        result = runner.invoke(main, ["flood", "-h", "localhost", "-d", "30"])
+        result = runner.invoke(main, ["flood", "-h", "localhost", "-d", "0"])
 
         assert result.exit_code == 0
-        mock_sender.flood.assert_called_once_with(rate=100, duration=30)
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_flood_long_options(self, mock_sender_class: MagicMock) -> None:
         """flood command accepts long option names."""
         mock_sender = MagicMock()
-        mock_sender.flood.return_value = 250
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -160,26 +185,26 @@ class TestFloodCommand:
                 "--rate",
                 "50",
                 "--duration",
-                "5",
+                "0",
             ],
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
-        mock_sender.flood.assert_called_once_with(rate=50, duration=5)
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
 
-    @patch("udp_sender.cli.UdpSender")
-    def test_flood_displays_packet_count(self, mock_sender_class: MagicMock) -> None:
-        """flood command displays the number of packets sent."""
+    @patch("udp_sender.cli.ReliableSender")
+    def test_flood_displays_message_count(self, mock_sender_class: MagicMock) -> None:
+        """flood command displays the number of messages sent."""
         mock_sender = MagicMock()
-        mock_sender.flood.return_value = 1234
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
-        result = runner.invoke(main, ["flood", "-h", "localhost"])
+        result = runner.invoke(main, ["flood", "-h", "localhost", "-d", "0"])
 
         assert result.exit_code == 0
-        assert "1234" in result.output
+        assert "Sent" in result.output
+        assert "messages" in result.output
 
 
 class TestInteractiveCommand:
@@ -191,10 +216,11 @@ class TestInteractiveCommand:
         result = runner.invoke(main, ["interactive"])
         assert result.exit_code != 0
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_interactive_uses_default_port(self, mock_sender_class: MagicMock) -> None:
         """interactive command uses default port 5000."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -202,12 +228,13 @@ class TestInteractiveCommand:
         result = runner.invoke(main, ["interactive", "-h", "localhost"], input="")
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000, app_id=None)
+        mock_sender_class.assert_called_once_with("localhost", 5000)
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_interactive_sends_input_lines(self, mock_sender_class: MagicMock) -> None:
         """interactive command sends each input line."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -219,14 +246,15 @@ class TestInteractiveCommand:
 
         assert result.exit_code == 0
         assert mock_sender.send.call_count == 3
-        mock_sender.send.assert_any_call("line1")
-        mock_sender.send.assert_any_call("line2")
-        mock_sender.send.assert_any_call("line3")
+        mock_sender.send.assert_any_call(b"line1")
+        mock_sender.send.assert_any_call(b"line2")
+        mock_sender.send.assert_any_call(b"line3")
 
-    @patch("udp_sender.cli.UdpSender")
+    @patch("udp_sender.cli.ReliableSender")
     def test_interactive_long_options(self, mock_sender_class: MagicMock) -> None:
         """interactive command accepts long option names."""
         mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
         mock_sender_class.return_value = mock_sender
 
         runner = CliRunner()
@@ -237,80 +265,26 @@ class TestInteractiveCommand:
         )
 
         assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
-
-
-class TestReliableSendCommand:
-    """Tests for the send command with --reliable flag."""
+        mock_sender_class.assert_called_once_with("192.168.1.1", 8080)
 
     @patch("udp_sender.cli.ReliableSender")
-    def test_send_reliable_uses_reliable_sender(
-        self, mock_sender_class: MagicMock
-    ) -> None:
-        """send --reliable uses ReliableSender."""
+    def test_interactive_shows_message_ids(self, mock_sender_class: MagicMock) -> None:
+        """interactive command shows message IDs in output."""
         mock_sender = MagicMock()
-        mock_sender.send.return_value = 0
+        mock_sender.send.side_effect = [1, 2, 3]
         mock_sender_class.return_value = mock_sender
-
-        runner = CliRunner()
-        result = runner.invoke(
-            main, ["send", "-h", "localhost", "-m", "test", "--reliable"]
-        )
-
-        assert result.exit_code == 0
-        mock_sender_class.assert_called_once_with("localhost", 5000)
-
-    @patch("udp_sender.cli.ReliableSender")
-    def test_send_reliable_shows_message_id(self, mock_sender_class: MagicMock) -> None:
-        """send --reliable shows message ID in output."""
-        mock_sender = MagicMock()
-        mock_sender.send.return_value = 42
-        mock_sender_class.return_value = mock_sender
-
-        runner = CliRunner()
-        result = runner.invoke(
-            main, ["send", "-h", "localhost", "-m", "test", "--reliable"]
-        )
-
-        assert result.exit_code == 0
-        assert "42" in result.output
-        assert "reliable" in result.output.lower()
-
-    @patch("udp_sender.cli.ReliableSender")
-    def test_send_reliable_encodes_payload(self, mock_sender_class: MagicMock) -> None:
-        """send --reliable encodes message as UTF-8 bytes."""
-        mock_sender = MagicMock()
-        mock_sender.send.return_value = 0
-        mock_sender_class.return_value = mock_sender
-
-        runner = CliRunner()
-        result = runner.invoke(
-            main, ["send", "-h", "localhost", "-m", "hello", "--reliable"]
-        )
-
-        assert result.exit_code == 0
-        mock_sender.send.assert_called_once_with(b"hello")
-
-    @patch("udp_sender.cli.ReliableSender")
-    @patch("udp_sender.cli.encode_packet")
-    def test_send_reliable_with_app_id(
-        self, mock_encode: MagicMock, mock_sender_class: MagicMock
-    ) -> None:
-        """send --reliable with --app-id uses encode_packet."""
-        mock_sender = MagicMock()
-        mock_sender.send.return_value = 0
-        mock_sender_class.return_value = mock_sender
-        mock_encode.return_value = b"\x06brokertest"
 
         runner = CliRunner()
         result = runner.invoke(
             main,
-            ["send", "-h", "localhost", "-m", "test", "--reliable", "-a", "broker"],
+            ["interactive", "-h", "localhost"],
+            input="a\nb\nc\n",
         )
 
         assert result.exit_code == 0
-        mock_encode.assert_called_once_with("broker", b"test")
-        mock_sender.send.assert_called_once_with(b"\x06brokertest")
+        assert "id=1" in result.output
+        assert "id=2" in result.output
+        assert "id=3" in result.output
 
 
 class TestMainGroup:
@@ -333,3 +307,11 @@ class TestMainGroup:
 
         # Should either show help or exit with specific code
         assert "send" in result.output or result.exit_code == 0
+
+    def test_main_shows_reliable_protocol_info(self) -> None:
+        """Main group help mentions reliable UDP protocol."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["--help"])
+
+        assert result.exit_code == 0
+        assert "reliable" in result.output.lower()

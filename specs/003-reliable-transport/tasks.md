@@ -133,7 +133,7 @@
 
 - [x] T037 [P] [US3] Unit test for ReliableSocket interface contract in reliable-udp/src/test/kotlin/com/example/reliableudp/ReliableSocketTest.kt
 - [x] T038 [P] [US3] Unit test for ReceivedMessage and SocketState in reliable-udp/src/test/kotlin/com/example/reliableudp/ReceivedMessageTest.kt
-- [ ] T039 [US3] Integration test for ReliableSocket send/receive loop in reliable-udp/src/test/kotlin/com/example/reliableudp/ReliableSocketIntegrationTest.kt (depends on all US1, US2 components) - DEFERRED: requires end-to-end testing
+- [x] T039 [US3] Integration test for ReliableSocket send/receive loop in reliable-udp/src/test/kotlin/com/example/reliableudp/ReliableSocketIntegrationTest.kt (depends on all US1, US2 components)
 
 ### Implementation for User Story 3
 
@@ -143,7 +143,7 @@
 - [x] T043 [P] [US3] Create DeliveryResult sealed class in reliable-udp/src/main/kotlin/com/example/reliableudp/DeliveryResult.kt
 - [x] T044 [US3] Implement ReliableSocketImpl with DI for all components in reliable-udp/src/main/kotlin/com/example/reliableudp/ReliableSocketImpl.kt (depends on T040-T043, all US1/US2 components)
 - [x] T045 [US3] Add reliable-udp dependency to udp-service/build.gradle.kts
-- [ ] T046 [US3] Update UdpSocket to optionally use ReliableSocket in udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt (depends on T044, T045) - DEFERRED: API integration optional
+- [x] T046 [US3] Update UdpSocket to use ReliableSocket in udp-service/src/main/kotlin/com/example/udpservice/UdpSocket.kt (depends on T044, T045)
 - [x] T047 [US3] Verify existing UdpSocket tests still pass in udp-service/src/test/kotlin/com/example/udpservice/UdpSocketTest.kt
 
 **Checkpoint**: Existing API preserved - can use reliable transport transparently
@@ -202,7 +202,7 @@
 
 - [x] T060 [P] Add Apache 2.0 attribution comments to files borrowing from Quincy (PacketBuffer, AckQueue patterns) per FR-012
 - [x] T061 [P] Add RFC 9002 reference comments to RttEstimator and loss detection logic per FR-012
-- [ ] T062 [P] Update README.md with reliable transport usage examples - DEFERRED: no README exists
+- [x] T062 [P] Update README.md with reliable transport usage examples in reliable-udp/README.md
 - [x] T063 [P] Update CLAUDE.md with new module context
 - [ ] T064 Run quickstart.md validation scenarios - DEFERRED: requires end-to-end testing environment
 - [ ] T065 Performance validation: verify <50ms latency overhead per NFR-002 - DEFERRED: requires benchmarking
