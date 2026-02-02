@@ -236,8 +236,8 @@ class ReliableSocketImpl(
         data: ByteArray,
         source: InetSocketAddress
     ) {
-        // Check for duplicates
-        if (!deduplicationCache.checkAndMark(header.sequenceNumber)) {
+        // Check for duplicates (per-source deduplication)
+        if (!deduplicationCache.checkAndMark(source, header.sequenceNumber)) {
             // Duplicate - still need to ACK but don't process
             ackQueue.enqueue(header.sequenceNumber)
             return
