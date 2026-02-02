@@ -5,15 +5,16 @@ Auto-generated from all feature plans. Last updated: 2026-02-01
 ## Active Technologies
 - Kotlin 1.9.22 + Jetpack Compose, Coroutines 1.7.3, Room 2.6.1 (002-message-persistence)
 - Room database with appId-indexed packets for multi-app filtering (002-message-persistence)
-
+- Reliable UDP: Selective Repeat ARQ with SACK, RFC 9002 RTT estimation, 64KB fragmentation (003-reliable-transport)
 - Kotlin 1.9.x, Python 3.10+ (001-udp-receiver-mvp)
 
 ## Project Structure
 
 ```text
 app/                      # Android app module
-udp-service/              # UDP service library module
-tools/udp-sender/         # Python test tool
+udp-service/              # UDP service library module (depends on reliable-udp)
+reliable-udp/             # Reliable UDP transport library (Kotlin JVM)
+tools/udp-sender/         # Python test tool (with --reliable flag)
 specs/                    # Feature specifications
 ```
 
@@ -51,16 +52,18 @@ Launch: `/opt/android-studio/bin/studio.sh`
 ./gradlew assembleDebug
 
 # Run unit tests
-./gradlew :udp-service:test
-./gradlew :app:test
+./gradlew :reliable-udp:test      # Reliable UDP library tests
+./gradlew :udp-service:test       # UDP service tests
+./gradlew :app:test               # App tests
 
 # Run on-device tests (requires connected device)
 ./gradlew :app:connectedAndroidTest
 
 # Python tool
 cd tools/udp-sender && uv run udp-sender --help
+cd tools/udp-sender && uv run udp-sender send -h HOST -m "message" --reliable  # Reliable mode
 cd tools/udp-sender && uv run pytest
-cd tools/udp-sender && ruff check .
+cd tools/udp-sender && uv run ruff check .
 ```
 
 ## Code Style
@@ -68,8 +71,8 @@ cd tools/udp-sender && ruff check .
 Kotlin 1.9.x, Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 003-reliable-transport: Added reliable-udp module with Selective Repeat ARQ, SACK, RFC 9002 RTT estimation, 64KB message fragmentation, delivery callbacks. Python tool updated with --reliable flag.
 - 002-message-persistence: Added Room 2.6.1 persistence with appId prefix filtering, packet detail view, erase functionality
-
 - 001-udp-receiver-mvp: Added Kotlin 1.9.x, Python 3.10+
 
 <!-- MANUAL ADDITIONS START -->

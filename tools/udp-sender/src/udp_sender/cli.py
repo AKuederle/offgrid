@@ -4,7 +4,8 @@ import sys
 
 import click
 
-from udp_sender.sender import UdpSender
+from udp_sender.reliable import ReliableSender
+from udp_sender.sender import UdpSender, encode_packet
 
 
 @click.group(invoke_without_command=True)
@@ -20,12 +21,25 @@ def main(ctx: click.Context) -> None:
 @click.option("-p", "--port", default=5000, type=int, help="Target UDP port")
 @click.option("-a", "--app-id", default=None, help="App ID prefix (e.g., 'broker')")
 @click.option("-m", "--message", required=True, help="Message to send")
-def send(host: str, port: int, app_id: str | None, message: str) -> None:
+@click.option("--reliable", is_flag=True, help="Use reliable UDP protocol")
+def send(
+    host: str, port: int, app_id: str | None, message: str, reliable: bool
+) -> None:
     """Send a single UDP packet."""
-    sender = UdpSender(host, port, app_id=app_id)
-    sender.send(message)
-    prefix = f" (appId={app_id})" if app_id else ""
-    click.echo(f"Sent message to {host}:{port}{prefix}")
+    if reliable:
+        # Reliable mode: add protocol headers, optionally with app_id prefix
+        payload = message.encode("utf-8")
+        if app_id:
+            payload = encode_packet(app_id, payload)
+        sender = ReliableSender(host, port)
+        msg_id = sender.send(payload)
+        prefix = f" (appId={app_id})" if app_id else ""
+        click.echo(f"Sent reliable message (id={msg_id}) to {host}:{port}{prefix}")
+    else:
+        sender = UdpSender(host, port, app_id=app_id)
+        sender.send(message)
+        prefix = f" (appId={app_id})" if app_id else ""
+        click.echo(f"Sent message to {host}:{port}{prefix}")
 
 
 @main.command()

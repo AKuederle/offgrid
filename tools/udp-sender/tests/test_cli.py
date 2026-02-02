@@ -240,6 +240,79 @@ class TestInteractiveCommand:
         mock_sender_class.assert_called_once_with("192.168.1.1", 8080, app_id=None)
 
 
+class TestReliableSendCommand:
+    """Tests for the send command with --reliable flag."""
+
+    @patch("udp_sender.cli.ReliableSender")
+    def test_send_reliable_uses_reliable_sender(
+        self, mock_sender_class: MagicMock
+    ) -> None:
+        """send --reliable uses ReliableSender."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
+        mock_sender_class.return_value = mock_sender
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["send", "-h", "localhost", "-m", "test", "--reliable"]
+        )
+
+        assert result.exit_code == 0
+        mock_sender_class.assert_called_once_with("localhost", 5000)
+
+    @patch("udp_sender.cli.ReliableSender")
+    def test_send_reliable_shows_message_id(self, mock_sender_class: MagicMock) -> None:
+        """send --reliable shows message ID in output."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 42
+        mock_sender_class.return_value = mock_sender
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["send", "-h", "localhost", "-m", "test", "--reliable"]
+        )
+
+        assert result.exit_code == 0
+        assert "42" in result.output
+        assert "reliable" in result.output.lower()
+
+    @patch("udp_sender.cli.ReliableSender")
+    def test_send_reliable_encodes_payload(self, mock_sender_class: MagicMock) -> None:
+        """send --reliable encodes message as UTF-8 bytes."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
+        mock_sender_class.return_value = mock_sender
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["send", "-h", "localhost", "-m", "hello", "--reliable"]
+        )
+
+        assert result.exit_code == 0
+        mock_sender.send.assert_called_once_with(b"hello")
+
+    @patch("udp_sender.cli.ReliableSender")
+    @patch("udp_sender.cli.encode_packet")
+    def test_send_reliable_with_app_id(
+        self, mock_encode: MagicMock, mock_sender_class: MagicMock
+    ) -> None:
+        """send --reliable with --app-id uses encode_packet."""
+        mock_sender = MagicMock()
+        mock_sender.send.return_value = 0
+        mock_sender_class.return_value = mock_sender
+        mock_encode.return_value = b"\x06brokertest"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["send", "-h", "localhost", "-m", "test", "--reliable", "-a", "broker"],
+        )
+
+        assert result.exit_code == 0
+        mock_encode.assert_called_once_with("broker", b"test")
+        mock_sender.send.assert_called_once_with(b"\x06brokertest")
+
+
 class TestMainGroup:
     """Tests for the main CLI group."""
 

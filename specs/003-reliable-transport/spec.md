@@ -81,7 +81,7 @@ Borrowing from [QUIC RFC 9002](https://quicwg.org/base-drafts/rfc9002.html):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Reliable UDP Header (12 bytes)                              │
+│ Reliable UDP Header (11 bytes)                              │
 ├──────────┬──────────┬───────────┬───────────┬──────────────┤
 │ Type (1) │ MsgID(4) │ SeqNum(4) │ FragIdx(1)│ FragTotal(1) │
 │          │          │           │ (1-based) │              │

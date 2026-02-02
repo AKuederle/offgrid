@@ -52,6 +52,9 @@ android {
 }
 
 dependencies {
+    // Reliable UDP Transport
+    implementation(project(":reliable-udp"))
+
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")
 
