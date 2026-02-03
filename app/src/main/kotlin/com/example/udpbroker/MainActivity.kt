@@ -209,9 +209,10 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data
         if (data != null && data.scheme == "udptest" && data.host == "messages") {
             val prefix = data.pathSegments.firstOrNull()
-            if (prefix != null && prefix in APP_PREFIXES) {
-                Log.d(TAG, "Deep link navigation to prefix: $prefix")
-                _deepLinkPrefix.value = prefix
+            val matchedPrefix = APP_PREFIXES.find { it.equals(prefix, ignoreCase = true) }
+            if (matchedPrefix != null) {
+                Log.d(TAG, "Deep link navigation to prefix: $matchedPrefix")
+                _deepLinkPrefix.value = matchedPrefix
             } else if (prefix != null) {
                 Log.w(TAG, "Deep link rejected: unknown prefix '$prefix' (valid: $APP_PREFIXES)")
             }

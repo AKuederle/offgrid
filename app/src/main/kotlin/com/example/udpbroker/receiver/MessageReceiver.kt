@@ -53,11 +53,11 @@ class MessageReceiver : BroadcastReceiver() {
             .setInputData(workDataOf(MessageNotificationWorker.KEY_PREFIX to prefix))
             .build()
 
-        // Use unique work with KEEP policy to avoid cancelling in-progress work
-        // If a notification job is already running/pending for this prefix, let it complete
+        // Use REPLACE policy to ensure the latest unread count is shown
+        // New messages should trigger updated notification with current count
         WorkManager.getInstance(context).enqueueUniqueWork(
             "notification_$prefix",
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             workRequest
         )
 
