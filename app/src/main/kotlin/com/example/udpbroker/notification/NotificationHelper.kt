@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
@@ -64,6 +65,10 @@ class NotificationHelperImpl(
     private val channelManager: NotificationChannelManager = NotificationChannelManager(context)
 ) : NotificationHelper {
 
+    companion object {
+        private const val TAG = "NotificationHelperImpl"
+    }
+
     private val notificationManager: NotificationManagerCompat by lazy {
         NotificationManagerCompat.from(context)
     }
@@ -101,7 +106,7 @@ class NotificationHelperImpl(
         try {
             notificationManager.notify(getNotificationId(prefix), notification)
         } catch (e: SecurityException) {
-            // Notification permission not granted - silently ignore
+            Log.w(TAG, "Notification permission not granted for prefix: $prefix")
         }
     }
 
