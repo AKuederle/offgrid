@@ -23,6 +23,11 @@ class PacketTypeTest {
         assertEquals(0x03.toByte(), PacketType.PING.value)
     }
 
+    @Test
+    fun `PRESENCE has value 0x04`() {
+        assertEquals(0x04.toByte(), PacketType.PRESENCE.value)
+    }
+
     @ParameterizedTest
     @EnumSource(PacketType::class)
     fun `fromByte round-trips all packet types`(type: PacketType) {
@@ -35,8 +40,8 @@ class PacketTypeTest {
     }
 
     @Test
-    fun `fromByte returns null for unknown type 0x04`() {
-        assertNull(PacketType.fromByte(0x04))
+    fun `fromByte returns null for unknown type 0x05`() {
+        assertNull(PacketType.fromByte(0x05))
     }
 
     @ParameterizedTest

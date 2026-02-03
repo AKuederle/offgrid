@@ -42,9 +42,10 @@ socket.messages.collect { message ->
 └──────────┴──────────┴───────────┴───────────┴──────────────┘
 
 Packet Types:
-  0x01 = DATA  - Payload packet (requires ACK)
-  0x02 = ACK   - Selective acknowledgment
-  0x03 = PING  - Keep-alive / RTT probe
+  0x01 = DATA     - Payload packet (requires ACK)
+  0x02 = ACK      - Selective acknowledgment
+  0x03 = PING     - Keep-alive / RTT probe
+  0x04 = PRESENCE - Peer discovery announcement (no ACK)
 ```
 
 ## Limitations
@@ -66,7 +67,7 @@ The current 64KB message limit is insufficient for:
 
 ## Proposed Solution: STREAM_DATA Packet Type
 
-Add a new packet type `0x04 = STREAM_DATA` that enables chunked delivery of arbitrarily large data with progressive delivery semantics.
+Add a new packet type `0x05 = STREAM_DATA` that enables chunked delivery of arbitrarily large data with progressive delivery semantics.
 
 ### Design Goals
 
@@ -80,7 +81,7 @@ Add a new packet type `0x04 = STREAM_DATA` that enables chunked delivery of arbi
 ```
 Existing header (11 bytes):
 ┌──────────┬──────────┬───────────┬───────────┬──────────────┐
-│Type=0x04 │ MsgID(4) │ SeqNum(4) │ FragIdx(1)│ FragTotal(1) │
+│Type=0x05 │ MsgID(4) │ SeqNum(4) │ FragIdx(1)│ FragTotal(1) │
 └──────────┴──────────┴───────────┴───────────┴──────────────┘
 
 Stream payload header (12 bytes):
@@ -135,7 +136,7 @@ socket.streams.collect { stream ->
 2. **Phase 2**: Implement `StreamSender` with chunking logic
 3. **Phase 3**: Implement `StreamReceiver` with reassembly
 4. **Phase 4**: Add flow control (optional backpressure)
-5. **Phase 5**: Python tool support
+5. **Phase 5**: CLI tool support
 
 ### Open Questions
 

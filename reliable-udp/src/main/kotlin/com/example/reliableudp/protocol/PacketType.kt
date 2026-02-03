@@ -13,7 +13,10 @@ enum class PacketType(val value: Byte) {
     ACK(0x02),
 
     /** Keep-alive / RTT measurement packet */
-    PING(0x03);
+    PING(0x03),
+
+    /** Presence announcement for peer discovery */
+    PRESENCE(0x04);
 
     companion object {
         /**

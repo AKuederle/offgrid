@@ -11,11 +11,13 @@ import java.net.InetSocketAddress
  * @property payload The complete message data
  * @property source The sender's address and port
  * @property receivedAt Timestamp when the message was fully received (milliseconds since epoch)
+ * @property isPresence True if this is a presence announcement (no payload)
  */
 data class ReceivedMessage(
     val payload: ByteArray,
     val source: InetSocketAddress,
-    val receivedAt: Long = System.currentTimeMillis()
+    val receivedAt: Long = System.currentTimeMillis(),
+    val isPresence: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -23,17 +25,19 @@ data class ReceivedMessage(
 
         return payload.contentEquals(other.payload) &&
                 source == other.source &&
-                receivedAt == other.receivedAt
+                receivedAt == other.receivedAt &&
+                isPresence == other.isPresence
     }
 
     override fun hashCode(): Int {
         var result = payload.contentHashCode()
         result = 31 * result + source.hashCode()
         result = 31 * result + receivedAt.hashCode()
+        result = 31 * result + isPresence.hashCode()
         return result
     }
 
     override fun toString(): String {
-        return "ReceivedMessage(payload=${payload.size} bytes, source=$source, receivedAt=$receivedAt)"
+        return "ReceivedMessage(payload=${payload.size} bytes, source=$source, receivedAt=$receivedAt, isPresence=$isPresence)"
     }
 }

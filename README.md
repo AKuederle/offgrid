@@ -6,12 +6,16 @@ A local-first Android UDP communication library that receives UDP packets withou
 
 This project provides a foreground service that listens for UDP packets on your local network. No Google Play Services, no push notifications, no cloud infrastructure required.
 
-**Current Status:** MVP complete (receive-only mode)
+**Current Status:** Send and receive with reliable transport, message persistence, and buffered retry
 
 ## Features
 
-- Receive UDP packets on configurable port (default: 5000)
+- Receive and send UDP packets on configurable port (default: 5000)
+- Reliable transport with automatic retransmission and delivery confirmation
+- Message persistence with Room database (survives app restarts)
+- Buffered send queue with exponential backoff retry
 - Display packets in real-time with sender info and timestamps
+- Outbound message status visibility (pending, sending, delivered, waiting)
 - Foreground service with silent notification (won't disturb you)
 - Auto-start on device boot (optional)
 - Works on local network without internet
@@ -21,7 +25,6 @@ This project provides a foreground service that listens for UDP packets on your 
 - Android Studio Hedgehog (2023.1.1) or newer
 - JDK 17
 - Android device or emulator (API 29+ / Android 10+)
-- Python 3.10+ with `uv` (for the test sender tool)
 
 ## Quick Start
 
@@ -50,47 +53,20 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 From your computer (must be on the same network):
 
 ```bash
-cd tools/udp-sender
+# Build the CLI tool
+./gradlew :udp-cli:installDist
 
-# Install dependencies
-uv sync
+# Send a single packet (use -a "broker" for app-id prefix)
+./udp-cli/build/install/udp-cli/bin/udp-cli send -h 192.168.1.100 -p 5000 -a "broker" -m "Hello from PC!"
 
-# Send a single packet
-uv run udp-sender send -h 192.168.1.100 -m "Hello from PC!"
+# Receive packets
+./udp-cli/build/install/udp-cli/bin/udp-cli receive -p 5000 -a "broker"
 
-# Send multiple packets
-uv run udp-sender flood -h 192.168.1.100 -r 10 -d 5
+# Send presence broadcast
+./udp-cli/build/install/udp-cli/bin/udp-cli broadcast -p 5000
 ```
 
 You should see packets appear in the app immediately.
-
-## Python Sender Tool
-
-The `udp-sender` tool in `tools/udp-sender/` provides commands for testing:
-
-### Send Command
-Send a single UDP packet:
-```bash
-uv run udp-sender send -h <device-ip> -m "Your message"
-uv run udp-sender send -h <device-ip> -p 5000 -m "Custom port"
-```
-
-### Flood Command
-Send packets at a specified rate:
-```bash
-# 100 packets/sec for 10 seconds (default)
-uv run udp-sender flood -h <device-ip>
-
-# Custom rate and duration
-uv run udp-sender flood -h <device-ip> -r 50 -d 30  # 50/sec for 30 seconds
-```
-
-### Interactive Mode
-Send packets interactively:
-```bash
-uv run udp-sender interactive -h <device-ip>
-# Type messages, press Enter to send, Ctrl+C to quit
-```
 
 ## Project Structure
 
@@ -99,21 +75,25 @@ android-udp-service/
 ├── app/                      # Android app module
 │   └── src/main/kotlin/
 │       ├── MainActivity.kt   # UI with service binding
-│       ├── PacketLog.kt      # Packet history state
-│       └── ui/BrokerScreen.kt
+│       └── ui/               # Compose UI components
 │
 ├── udp-service/              # Library module (AAR)
 │   └── src/main/kotlin/
 │       ├── UdpReceiver.kt    # Public interface
 │       ├── UdpSocket.kt      # Socket implementation
 │       ├── UdpReceiverService.kt
-│       ├── NetworkUtils.kt   # IP detection
-│       └── api/              # Data classes
+│       ├── send/             # Outbound message queue
+│       ├── presence/         # Peer discovery broadcast
+│       └── persistence/      # Room database
 │
-└── tools/udp-sender/         # Python test tool
-    └── src/udp_sender/
-        ├── cli.py            # Click commands
-        └── sender.py         # UdpSender class
+├── reliable-udp/             # Reliable transport library (JVM)
+│   └── src/main/kotlin/
+│       ├── ReliableSocket.kt # Public interface
+│       └── protocol/         # Wire protocol
+│
+└── udp-cli/                  # Kotlin CLI tool
+    └── src/main/kotlin/
+        └── commands/         # send, receive, broadcast
 ```
 
 ## Development
@@ -133,9 +113,6 @@ This project follows strict TDD. All code must have tests written first.
 
 # Device-only tests (requires physical device)
 ./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.example.udpservice.test.DeviceOnly
-
-# Python tool tests
-cd tools/udp-sender && uv run pytest
 ```
 
 ### Test Stages
@@ -171,8 +148,12 @@ adb shell am broadcast -n com.example.udpbroker/.ServiceControlReceiver \
 ## Roadmap
 
 - [x] MVP: Receive and display UDP packets
-- [ ] Send UDP packets from Android
-- [ ] Message buffering with Room database
+- [x] Reliable transport with retransmission
+- [x] Message persistence with Room database
+- [x] Send UDP packets with buffered retry
+- [x] Delivery status visibility in UI
+- [x] Presence broadcast for peer discovery
+- [x] Kotlin CLI tool (replaced Python tool)
 - [ ] Broker mode for multi-app sharing
 - [ ] Topic-based message routing
 

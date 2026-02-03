@@ -6,19 +6,26 @@ import com.example.reliableudp.SocketState
 import com.example.udpservice.api.PacketParser
 import com.example.udpservice.api.ReceiverState
 import com.example.udpservice.api.UdpPacket
+import com.example.udpservice.send.OutboundMessage
+import com.example.udpservice.send.SendQueue
+import com.example.udpservice.send.SendQueueImpl
+import com.example.udpservice.send.SendResult
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -54,6 +61,22 @@ class UdpSocket(
     private var collectJob: Job? = null
     private var stateCollectJob: Job? = null
     private var scope: CoroutineScope? = null
+
+    /**
+     * The send queue for outbound message management.
+     * Set by the service after construction.
+     * When set, wires up the transmitter to use the reliable socket.
+     */
+    var sendQueue: SendQueue? = null
+        set(value) {
+            field = value
+            // Wire up the transmitter if it's a SendQueueImpl
+            (value as? SendQueueImpl)?.transmitter = { destination, payload, onResult ->
+                val socket = reliableSocket
+                    ?: throw IllegalStateException("Socket not bound")
+                socket.sendAsync(destination, payload, onResult)
+            }
+        }
 
     /**
      * Callback invoked when a valid packet is received.
@@ -102,9 +125,16 @@ class UdpSocket(
             // Collect messages and convert to UdpPacket
             collectJob = newScope.launch {
                 socket.messages.collect { message ->
-                    processReceivedMessage(message.payload, message.source, message.receivedAt)
+                    if (!message.isPresence) {
+                        processReceivedMessage(message.payload, message.source, message.receivedAt)
+                    }
+                    // Notify SendQueue of peer activity (for WAITING message resume)
+                    sendQueue?.onPeerActivity(message.source)
                 }
             }
+
+            // Start the send queue for outbound messages
+            sendQueue?.start()
 
             Log.d(TAG, "Reliable socket started on port $port")
         } catch (e: Exception) {
@@ -163,6 +193,9 @@ class UdpSocket(
     override fun stop() {
         Log.d(TAG, "Stopping socket")
 
+        // Stop the send queue first
+        sendQueue?.stop()
+
         collectJob?.cancel()
         collectJob = null
 
@@ -187,5 +220,22 @@ class UdpSocket(
     override fun unregisterAppId(appId: String) {
         _registeredAppIds.remove(appId)
         Log.d(TAG, "Unregistered appId: $appId (total: ${_registeredAppIds.size})")
+    }
+
+    override val outboundMessages: Flow<List<OutboundMessage>>
+        get() = sendQueue?.observeAll() ?: emptyFlow()
+
+    override suspend fun send(destination: InetSocketAddress, payload: ByteArray): SendResult {
+        val queue = sendQueue
+            ?: return SendResult.Failed("Send queue not initialized")
+
+        Log.d(TAG, "Queueing message for ${destination.hostString}:${destination.port} (${payload.size} bytes)")
+        return queue.enqueue(destination, payload)
+    }
+
+    override suspend fun cancelSend(messageId: Long): Boolean {
+        val queue = sendQueue ?: return false
+        Log.d(TAG, "Cancelling message $messageId")
+        return queue.cancel(messageId)
     }
 }

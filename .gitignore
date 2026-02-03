@@ -23,6 +23,7 @@
 /app/build/
 /udp-service/build/
 /reliable-udp/build/
+/udp-cli/build/
 *.hprof
 
 # Logs

@@ -19,3 +19,4 @@ rootProject.name = "android-udp-service"
 include(":app")
 include(":udp-service")
 include(":reliable-udp")
+include(":udp-cli")
