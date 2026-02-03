@@ -12,8 +12,8 @@ import androidx.room.RoomDatabase
  * Thread-safe singleton with double-checked locking.
  */
 @Database(
-    entities = [PacketEntity::class],
-    version = 1,
+    entities = [PacketEntity::class, AppRegistrationEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class PacketDatabase : RoomDatabase() {
@@ -22,6 +22,11 @@ abstract class PacketDatabase : RoomDatabase() {
      * Get the PacketDao for database operations.
      */
     abstract fun packetDao(): PacketDao
+
+    /**
+     * Get the AppRegistrationDao for registration operations.
+     */
+    abstract fun appRegistrationDao(): AppRegistrationDao
 
     companion object {
         private const val DATABASE_NAME = "packet_database.db"
