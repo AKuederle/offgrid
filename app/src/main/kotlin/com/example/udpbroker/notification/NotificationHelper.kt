@@ -119,7 +119,11 @@ class NotificationHelperImpl(
 
     /**
      * Generate a stable notification ID from the prefix.
-     * Uses hashCode to get a consistent integer ID.
+     * Uses hashCode to get a consistent integer ID that persists across app restarts.
+     *
+     * Note: hashCode collisions are theoretically possible but unlikely for the small,
+     * known set of prefixes used in practice. If two prefixes collide, their notifications
+     * would overwrite each other.
      */
     private fun getNotificationId(prefix: String): Int {
         // Ensure positive ID >= 1000 to avoid collision with service notification (ID 1)
