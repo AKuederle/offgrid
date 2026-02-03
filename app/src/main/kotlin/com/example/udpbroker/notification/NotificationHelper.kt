@@ -119,6 +119,7 @@ class NotificationHelperImpl(
      */
     private fun getNotificationId(prefix: String): Int {
         // Use a base offset to avoid collision with service notification (ID 1)
-        return 1000 + prefix.hashCode().and(0x7FFFFFFF) % 10000
+        // Use full positive hashCode range to minimize collision risk between prefixes
+        return 1000 + prefix.hashCode().and(0x7FFFFFFF)
     }
 }

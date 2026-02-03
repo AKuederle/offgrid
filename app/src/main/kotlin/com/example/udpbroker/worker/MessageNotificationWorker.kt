@@ -62,8 +62,10 @@ class MessageNotificationWorker(
             // Get registration for deep link URI
             val registration = registrationRepository.getRegistration(prefix)
             if (registration == null) {
+                // Prefix may have been unregistered while notification was pending
+                // Message is already persisted, so this is not a failure
                 Log.w(TAG, "No registration found for prefix: $prefix")
-                return Result.failure()
+                return Result.success()
             }
 
             // Check if notifications are enabled
