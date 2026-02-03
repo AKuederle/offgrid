@@ -73,14 +73,14 @@ class NotificationHelperImpl(
     }
 
     override fun show(prefix: String, count: Int, deepLinkUri: String) {
-        // Check if notifications are enabled before doing any work
+        // Ensure channel exists first (needed for settings UI even if notifications disabled)
+        ensureChannel(prefix)
+
+        // Check if notifications are enabled
         if (!notificationManager.areNotificationsEnabled()) {
             Log.w(TAG, "Notifications are disabled by user - skipping notification for prefix: $prefix")
             return
         }
-
-        // Ensure channel exists
-        ensureChannel(prefix)
 
         // Create pending intent for deep link
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLinkUri)).apply {

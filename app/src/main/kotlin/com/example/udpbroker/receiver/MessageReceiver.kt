@@ -50,11 +50,11 @@ class MessageReceiver : BroadcastReceiver() {
     private fun enqueueNotificationWork(context: Context, prefix: String) {
         val workRequest = OneTimeWorkRequestBuilder<MessageNotificationWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .setInitialDelay(500, java.util.concurrent.TimeUnit.MILLISECONDS)
             .setInputData(workDataOf(MessageNotificationWorker.KEY_PREFIX to prefix))
             .build()
 
-        // Use REPLACE policy to ensure the latest unread count is shown
-        // New messages should trigger updated notification with current count
+        // Use REPLACE with initial delay to batch rapid messages while ensuring latest count
         WorkManager.getInstance(context).enqueueUniqueWork(
             "notification_$prefix",
             ExistingWorkPolicy.REPLACE,
