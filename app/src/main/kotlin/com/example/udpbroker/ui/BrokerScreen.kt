@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.udpservice.persistence.PacketEntity
+import com.example.udpservice.send.OutboundMessage
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.text.SimpleDateFormat
@@ -71,10 +72,13 @@ enum class UiServiceStatus {
 fun BrokerScreen(
     state: UiReceiverState,
     packets: List<PacketEntity>,
+    outboundMessages: List<OutboundMessage> = emptyList(),
     onStartClick: () -> Unit,
     onStopClick: () -> Unit,
     onEraseClick: (() -> Unit)? = null,
     onPacketClick: ((PacketEntity) -> Unit)? = null,
+    onRetryClick: ((OutboundMessage) -> Unit)? = null,
+    onCancelClick: ((OutboundMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showEraseDialog by remember { mutableStateOf(false) }
@@ -241,6 +245,16 @@ fun BrokerScreen(
                 ) {
                     Text("Erase All Data")
                 }
+            }
+
+            // Outbound messages list
+            if (outboundMessages.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(24.dp))
+                OutboundMessageList(
+                    messages = outboundMessages,
+                    onRetryClick = onRetryClick,
+                    onCancelClick = onCancelClick
+                )
             }
 
             // Packet list

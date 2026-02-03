@@ -1,9 +1,13 @@
 package com.example.udpservice
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.example.udpservice.api.UdpPacket
 import com.example.udpservice.api.ReceiverState
+import com.example.udpservice.send.OutboundMessage
+import com.example.udpservice.send.SendResult
+import java.net.InetSocketAddress
 
 /**
  * Interface for receiving UDP packets asynchronously.
@@ -75,4 +79,35 @@ interface UdpReceiver {
      * @param appId The application identifier to unregister
      */
     fun unregisterAppId(appId: String)
+
+    /**
+     * A flow of all outbound messages and their delivery status.
+     *
+     * Emits the current list of all outbound messages whenever
+     * any message's status changes.
+     */
+    val outboundMessages: Flow<List<OutboundMessage>>
+
+    /**
+     * Queue a message for reliable delivery to a peer.
+     *
+     * The message is persisted to the database before this method returns,
+     * ensuring it survives app restarts. Actual transmission happens
+     * asynchronously with automatic retry on failure.
+     *
+     * @param destination The target peer address
+     * @param payload Message content (max 64KB)
+     * @return SendResult indicating success (with message ID) or failure
+     */
+    suspend fun send(destination: InetSocketAddress, payload: ByteArray): SendResult
+
+    /**
+     * Cancel a pending outbound message.
+     *
+     * Only non-delivered messages can be cancelled.
+     *
+     * @param messageId The ID of the message to cancel
+     * @return true if cancelled, false if not found or already delivered
+     */
+    suspend fun cancelSend(messageId: Long): Boolean
 }

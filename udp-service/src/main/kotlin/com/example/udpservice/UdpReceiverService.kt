@@ -13,6 +13,12 @@ import com.example.udpservice.api.UdpPacket
 import com.example.udpservice.persistence.PacketDatabase
 import com.example.udpservice.persistence.PacketDao
 import com.example.udpservice.persistence.PacketEntity
+import com.example.udpservice.presence.BroadcastResult
+import com.example.udpservice.presence.PresenceBroadcaster
+import com.example.udpservice.presence.PresenceBroadcasterImpl
+import com.example.udpservice.presence.PresenceConfig
+import com.example.udpservice.send.SendQueue
+import com.example.udpservice.send.SendQueueImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +46,16 @@ class UdpReceiverService : Service() {
     private val database by lazy { PacketDatabase.getInstance(applicationContext) }
     private val packetDao: PacketDao by lazy { database.packetDao() }
 
+    // Send queue for outbound messages
+    private val sendQueue: SendQueue by lazy {
+        SendQueueImpl(database.outboundMessageDao())
+    }
+
+    // Presence broadcaster for peer discovery
+    private val presenceBroadcaster: PresenceBroadcaster by lazy {
+        PresenceBroadcasterImpl(PresenceConfig(broadcastPort = DEFAULT_PORT))
+    }
+
     companion object {
         private const val TAG = "UdpReceiverService"
         private const val NOTIFICATION_CHANNEL_ID = "udp_receiver_channel"
@@ -60,6 +76,15 @@ class UdpReceiverService : Service() {
         super.onCreate()
         createNotificationChannel()
         setupPersistence()
+        setupSendQueue()
+    }
+
+    /**
+     * Set up the send queue for outbound message management.
+     * Links the send queue to the UDP socket.
+     */
+    private fun setupSendQueue() {
+        udpSocket.sendQueue = sendQueue
     }
 
     /**
@@ -97,10 +122,11 @@ class UdpReceiverService : Service() {
         val notification = createForegroundNotification(port)
         startForeground(NOTIFICATION_ID, notification)
 
-        // Start the UDP socket
+        // Start the UDP socket and send presence broadcast
         serviceScope.launch {
             try {
                 udpSocket.start(port)
+                sendPresenceBroadcast()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start socket", e)
                 stopSelf()
@@ -115,6 +141,24 @@ class UdpReceiverService : Service() {
         super.onDestroy()
         udpSocket.stop()
         serviceScope.cancel()
+    }
+
+    /**
+     * Send a presence broadcast to notify peers that this device is online.
+     * Rate-limited to prevent broadcast storms.
+     */
+    private suspend fun sendPresenceBroadcast() {
+        when (val result = presenceBroadcaster.broadcast()) {
+            is BroadcastResult.Success -> {
+                Log.d(TAG, "Presence broadcast sent")
+            }
+            is BroadcastResult.RateLimited -> {
+                Log.d(TAG, "Presence broadcast rate-limited, wait ${result.waitMillis}ms")
+            }
+            is BroadcastResult.Failed -> {
+                Log.w(TAG, "Presence broadcast failed: ${result.reason}")
+            }
+        }
     }
 
     /**

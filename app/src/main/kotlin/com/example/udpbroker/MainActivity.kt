@@ -29,6 +29,7 @@ import com.example.udpservice.UdpReceiver
 import com.example.udpservice.UdpReceiverService
 import com.example.udpservice.persistence.PacketDatabase
 import com.example.udpservice.persistence.PacketEntity
+import com.example.udpservice.send.OutboundMessage
 import com.example.udpservice.api.ReceiverState as ServiceReceiverState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +64,9 @@ class MainActivity : ComponentActivity() {
     // Currently selected packet for detail view (null = show list)
     private val _selectedPacket = MutableStateFlow<PacketEntity?>(null)
 
+    // Flow of outbound messages from the send queue
+    private val _outboundMessages = MutableStateFlow<List<OutboundMessage>>(emptyList())
+
     private var serviceBinder: UdpReceiverService.LocalBinder? = null
 
     // Observable state for UI
@@ -72,6 +76,7 @@ class MainActivity : ComponentActivity() {
     private var packetCollectionJob: Job? = null
     private var stateCollectionJob: Job? = null
     private var databaseObserveJob: Job? = null
+    private var outboundObserveJob: Job? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -86,6 +91,7 @@ class MainActivity : ComponentActivity() {
 
             startStateCollection()
             startDatabaseObservation()
+            startOutboundObservation()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -96,6 +102,8 @@ class MainActivity : ComponentActivity() {
             stateCollectionJob = null
             databaseObserveJob?.cancel()
             databaseObserveJob = null
+            outboundObserveJob?.cancel()
+            outboundObserveJob = null
             serviceBinder = null
             receiver = null
             bound = false
@@ -108,6 +116,16 @@ class MainActivity : ComponentActivity() {
         databaseObserveJob = activityScope.launch {
             packetDao.observePacketsByAppId(APP_ID, limit = 100).collect { packets ->
                 _packets.value = packets
+            }
+        }
+    }
+
+    private fun startOutboundObservation() {
+        outboundObserveJob?.cancel()
+        val currentReceiver = receiver ?: return
+        outboundObserveJob = activityScope.launch {
+            currentReceiver.outboundMessages.collect { messages ->
+                _outboundMessages.value = messages
             }
         }
     }
@@ -190,6 +208,7 @@ class MainActivity : ComponentActivity() {
     private fun MainContent() {
         val state by uiState.collectAsState()
         val packets by _packets.collectAsState()
+        val outboundMessages by _outboundMessages.collectAsState()
         val selectedPacket by _selectedPacket.collectAsState()
 
         selectedPacket?.let { packet ->
@@ -200,11 +219,53 @@ class MainActivity : ComponentActivity() {
         } ?: BrokerScreen(
             state = state,
             packets = packets,
+            outboundMessages = outboundMessages,
             onStartClick = { startService() },
             onStopClick = { stopService() },
             onEraseClick = { eraseAllData() },
-            onPacketClick = { packet -> _selectedPacket.value = packet }
+            onPacketClick = { packet -> _selectedPacket.value = packet },
+            onRetryClick = { message -> retryMessage(message) },
+            onCancelClick = { message -> cancelMessage(message) }
         )
+    }
+
+    private fun retryMessage(message: OutboundMessage) {
+        activityScope.launch {
+            try {
+                // Re-enqueue the message to retry
+                receiver?.send(message.peer, message.payload)
+                // Cancel the old message
+                receiver?.cancelSend(message.id)
+                Log.d(TAG, "Retried message ${message.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to retry message", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    "Failed to retry message",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun cancelMessage(message: OutboundMessage) {
+        activityScope.launch {
+            try {
+                val cancelled = receiver?.cancelSend(message.id) ?: false
+                if (cancelled) {
+                    Log.d(TAG, "Cancelled message ${message.id}")
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Message cancelled",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Log.w(TAG, "Could not cancel message ${message.id}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to cancel message", e)
+            }
+        }
     }
 
     private fun eraseAllData() {

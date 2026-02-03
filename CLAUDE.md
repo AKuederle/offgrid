@@ -6,7 +6,9 @@ Auto-generated from all feature plans. Last updated: 2026-02-01
 - Kotlin 1.9.22 + Jetpack Compose, Coroutines 1.7.3, Room 2.6.1 (002-message-persistence)
 - Room database with appId-indexed packets for multi-app filtering (002-message-persistence)
 - Reliable UDP: Selective Repeat ARQ with SACK, RFC 9002 RTT estimation, 64KB fragmentation (003-reliable-transport)
-- Kotlin 1.9.x, Python 3.10+ (001-udp-receiver-mvp)
+- Kotlin 1.9.x (001-udp-receiver-mvp)
+- Kotlin 1.9.22, JVM 17 + Kotlin Coroutines 1.7.3, Room 2.6.1, reliable-udp library (004-buffered-send)
+- Room database (extending existing schema from 002-message-persistence) (004-buffered-send)
 
 ## Project Structure
 
@@ -14,7 +16,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-01
 app/                      # Android app module
 udp-service/              # UDP service library module (depends on reliable-udp)
 reliable-udp/             # Reliable UDP transport library (Kotlin JVM)
-tools/udp-sender/         # Python test tool (always uses reliable UDP)
+udp-cli/                  # Kotlin CLI tool for testing
 specs/                    # Feature specifications
 ```
 
@@ -54,33 +56,35 @@ Launch: `/opt/android-studio/bin/studio.sh`
 # Run unit tests
 ./gradlew :reliable-udp:test      # Reliable UDP library tests
 ./gradlew :udp-service:test       # UDP service tests
+./gradlew :udp-cli:test           # CLI tool tests
 ./gradlew :app:test               # App tests
 
 # Run on-device tests (requires connected device)
 ./gradlew :app:connectedAndroidTest
 
-# Python tool
-cd tools/udp-sender && uv run udp-sender --help
-cd tools/udp-sender && uv run udp-sender send -h HOST -p 5000 -a "broker" -m "message"
-cd tools/udp-sender && uv run pytest
-cd tools/udp-sender && uv run ruff check .
+# Kotlin CLI tool
+./gradlew :udp-cli:installDist    # Build CLI distribution
+./udp-cli/build/install/udp-cli/bin/udp-cli send -h HOST -p 5000 -a "broker" -m "message"
+./udp-cli/build/install/udp-cli/bin/udp-cli receive -p 5000 -a "broker"
+./udp-cli/build/install/udp-cli/bin/udp-cli broadcast -p 5000
 ```
 
 ## Code Style
 
-Kotlin 1.9.x, Python 3.10+: Follow standard conventions
+Kotlin 1.9.x: Follow standard conventions
 
 ## Recent Changes
+- 004-buffered-send: Added Kotlin 1.9.22, JVM 17 + Kotlin Coroutines 1.7.3, Room 2.6.1, reliable-udp library
 - 003-reliable-transport: Added reliable-udp module with Selective Repeat ARQ, SACK, RFC 9002 RTT estimation, 64KB message fragmentation, delivery callbacks. Python tool and UdpSocket now always use reliable transport.
 - 002-message-persistence: Added Room 2.6.1 persistence with appId prefix filtering, packet detail view, erase functionality
-- 001-udp-receiver-mvp: Added Kotlin 1.9.x, Python 3.10+
 
 <!-- MANUAL ADDITIONS START -->
 ## Testing with the Android App
 
 **Always use the app-id prefix** when sending messages to the Android app:
 ```bash
-uv run udp-sender send -h <DEVICE_IP> -p 5000 -a "broker" -m "your message"
+./gradlew :udp-cli:installDist
+./udp-cli/build/install/udp-cli/bin/udp-cli send -h <DEVICE_IP> -p 5000 -a "broker" -m "your message"
 ```
 
 Messages without the `-a "broker"` prefix will be received but filtered out by the app's UI (it only displays messages matching its configured appId).

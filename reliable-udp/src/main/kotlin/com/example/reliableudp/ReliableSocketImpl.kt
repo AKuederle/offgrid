@@ -228,6 +228,7 @@ class ReliableSocketImpl(
             PacketType.DATA -> handleDataPacket(header, data, source)
             PacketType.ACK -> handleAckPacket(data)
             PacketType.PING -> handlePingPacket(source, socket)
+            PacketType.PRESENCE -> handlePresencePacket(source)
         }
     }
 
@@ -309,6 +310,16 @@ class ReliableSocketImpl(
     private fun handlePingPacket(source: InetSocketAddress, socket: DatagramSocket) {
         // Respond with ACK (empty ACK frame for ping)
         // For simplicity, we don't implement PING responses yet
+    }
+
+    private suspend fun handlePresencePacket(source: InetSocketAddress) {
+        // Presence packets indicate peer is online
+        // Emit as a special message type for the application layer to handle
+        _messages.emit(ReceivedMessage(
+            payload = ByteArray(0),
+            source = source,
+            isPresence = true
+        ))
     }
 
     private suspend fun ackSendLoop(socket: DatagramSocket) {
