@@ -16,7 +16,10 @@ object AppState {
      * Set by MessagesScreen when it becomes visible, cleared when it exits.
      * Null when no message list is being viewed.
      *
-     * Thread-safety: @Volatile ensures visibility across threads for simple read/write.
+     * Thread-safety: @Volatile ensures visibility but not atomicity. There's a
+     * potential check-then-act race where a notification could be shown/suppressed
+     * incorrectly if the user navigates at the exact moment a message arrives.
+     * This is acceptable as an extra or missed notification has minimal impact.
      */
     @Volatile
     var activePrefix: String? = null

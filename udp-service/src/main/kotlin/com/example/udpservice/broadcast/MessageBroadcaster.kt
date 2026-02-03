@@ -1,5 +1,6 @@
 package com.example.udpservice.broadcast
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 
@@ -35,8 +36,9 @@ interface MessageBroadcaster {
 /**
  * Default implementation using Android's Context.sendBroadcast().
  *
- * Uses setPackage() for explicit broadcasts to ensure only the target
- * package receives the notification (required for Android 8+ manifest receivers).
+ * Uses explicit component targeting to ensure only the target receiver
+ * processes the notification. This allows receivers to be non-exported
+ * for security while still receiving cross-package broadcasts from the broker.
  */
 class MessageBroadcasterImpl(
     private val context: Context
@@ -44,7 +46,8 @@ class MessageBroadcasterImpl(
 
     override fun broadcastNewMessage(prefix: String, packageName: String) {
         val intent = Intent(BroadcastActions.ACTION_NEW_MESSAGE).apply {
-            setPackage(packageName)
+            // Use explicit component: package + standard receiver class name
+            setComponent(ComponentName(packageName, "$packageName.receiver.MessageReceiver"))
             putExtra(BroadcastActions.EXTRA_PREFIX, prefix)
         }
         context.sendBroadcast(intent)

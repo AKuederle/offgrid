@@ -49,13 +49,10 @@
         </receiver>
 
         <!-- Broadcast receiver for new message notifications from UDP service -->
+        <!-- Not exported: broker uses explicit component broadcasts to this receiver -->
         <receiver
             android:name=".receiver.MessageReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.example.udpservice.NEW_MESSAGE" />
-            </intent-filter>
-        </receiver>
+            android:exported="false" />
 
     </application>
 
