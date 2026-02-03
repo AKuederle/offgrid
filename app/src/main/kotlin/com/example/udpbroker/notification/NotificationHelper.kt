@@ -66,16 +66,11 @@ class NotificationHelperImpl(
 
     companion object {
         private const val TAG = "NotificationHelperImpl"
-        private const val BASE_NOTIFICATION_ID = 1000
     }
 
     private val notificationManager: NotificationManagerCompat by lazy {
         NotificationManagerCompat.from(context)
     }
-
-    // Deterministic prefix→ID mapping to avoid hashCode collisions
-    private val prefixIdMap = mutableMapOf<String, Int>()
-    private var nextId = BASE_NOTIFICATION_ID
 
     override fun show(prefix: String, count: Int, deepLinkUri: String) {
         // Ensure channel exists
@@ -124,10 +119,10 @@ class NotificationHelperImpl(
 
     /**
      * Generate a stable notification ID from the prefix.
-     * Uses a deterministic map to avoid hashCode collisions.
+     * Uses hashCode to get a consistent integer ID.
      */
-    @Synchronized
     private fun getNotificationId(prefix: String): Int {
-        return prefixIdMap.getOrPut(prefix) { nextId++ }
+        // Ensure positive ID >= 1000 to avoid collision with service notification (ID 1)
+        return prefix.hashCode().and(0x7FFFFFFF).coerceAtLeast(1000)
     }
 }
