@@ -1,5 +1,7 @@
 package com.example.udpbroker
 
+import java.util.concurrent.atomic.AtomicReference
+
 /**
  * Simple global state for tracking which prefix the UI is actively viewing.
  *
@@ -10,15 +12,17 @@ package com.example.udpbroker
  * and messages will be automatically marked as read via Flow observation.
  */
 object AppState {
+    private val _activePrefix = AtomicReference<String?>(null)
+
     /**
      * The prefix that is currently being actively viewed in the UI.
      *
      * Set by MessagesScreen when it becomes visible, cleared when it exits.
      * Null when no message list is being viewed.
      *
-     * Thread-safety: This is a volatile variable for simple read/write operations.
-     * More complex state management would require synchronization.
+     * Thread-safety: Uses AtomicReference for safe concurrent access.
      */
-    @Volatile
-    var activePrefix: String? = null
+    var activePrefix: String?
+        get() = _activePrefix.get()
+        set(value) = _activePrefix.set(value)
 }

@@ -53,10 +53,11 @@ class MessageReceiver : BroadcastReceiver() {
             .setInputData(workDataOf(MessageNotificationWorker.KEY_PREFIX to prefix))
             .build()
 
-        // Use unique work to avoid duplicate notifications for the same prefix
+        // Use unique work with KEEP policy to avoid cancelling in-progress work
+        // If a notification job is already running/pending for this prefix, let it complete
         WorkManager.getInstance(context).enqueueUniqueWork(
             "notification_$prefix",
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             workRequest
         )
 

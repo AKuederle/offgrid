@@ -1,6 +1,7 @@
 package com.example.udpbroker
 
 import android.content.Context
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
@@ -29,17 +30,15 @@ class UnreadCountTest {
 
     @Before
     fun setup() {
-        database = PacketDatabase.getInstance(context)
-        runTest {
-            database.packetDao().deleteAllPackets()
-        }
+        // Use in-memory database to avoid interfering with real app data
+        database = Room.inMemoryDatabaseBuilder(context, PacketDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
     }
 
     @After
     fun teardown() {
-        runTest {
-            database.packetDao().deleteAllPackets()
-        }
+        database.close()
     }
 
     @Test

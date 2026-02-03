@@ -3,7 +3,6 @@ package com.example.udpbroker.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -16,9 +15,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.udpbroker.APP_PREFIXES
 import com.example.udpservice.persistence.PacketDao
 import com.example.udpservice.persistence.PacketEntity
-import kotlinx.coroutines.flow.Flow
 
 /**
  * Main app composable with tab navigation for different message prefixes.
@@ -41,7 +40,7 @@ fun BrokerApp(
     headerContent: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val tabs = listOf("broker", "alerts")
+    val tabs = APP_PREFIXES
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     // React to deep link changes

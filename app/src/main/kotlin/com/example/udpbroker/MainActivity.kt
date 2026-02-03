@@ -43,13 +43,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * App prefixes for receiving UDP packets.
+ * The broker app registers both prefixes and broadcasts to itself for testing.
+ * Defined at package level for use across the app.
+ */
+val APP_PREFIXES = listOf("broker", "alerts")
+
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        // App prefixes for receiving UDP packets
-        // The broker app registers both prefixes and broadcasts to itself for testing
-        val APP_PREFIXES = listOf("broker", "alerts")
     }
 
     private var receiver: UdpReceiver? = null
@@ -208,6 +212,8 @@ class MainActivity : ComponentActivity() {
             if (prefix != null && prefix in APP_PREFIXES) {
                 Log.d(TAG, "Deep link navigation to prefix: $prefix")
                 _deepLinkPrefix.value = prefix
+            } else if (prefix != null) {
+                Log.w(TAG, "Deep link rejected: unknown prefix '$prefix' (valid: $APP_PREFIXES)")
             }
         }
     }
