@@ -20,8 +20,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import com.example.udpbroker.ui.BrokerScreen
+import com.example.udpbroker.ui.BrokerApp
 import com.example.udpbroker.ui.PacketDetailView
+import com.example.udpbroker.ui.ServiceControlPanel
 import com.example.udpbroker.ui.UiReceiverState
 import com.example.udpbroker.ui.UiServiceStatus
 import com.example.udpbroker.ui.theme.UDPBrokerTheme
@@ -29,6 +30,8 @@ import com.example.udpservice.UdpReceiver
 import com.example.udpservice.UdpReceiverService
 import com.example.udpservice.persistence.PacketDatabase
 import com.example.udpservice.persistence.PacketEntity
+import com.example.udpservice.registration.AppRegistration
+import com.example.udpservice.registration.RegistrationRepositoryImpl
 import com.example.udpservice.api.ReceiverState as ServiceReceiverState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,13 +43,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * App prefixes for receiving UDP packets.
+ * The broker app registers both prefixes and broadcasts to itself for testing.
+ * Defined at package level for use across the app.
+ */
+val APP_PREFIXES = listOf("broker", "alerts")
+
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        // This app's unique identifier for receiving UDP packets
-        // Packets must have this appId prefix to be received
-        const val APP_ID = "broker"
     }
 
     private var receiver: UdpReceiver? = null
@@ -56,12 +63,18 @@ class MainActivity : ComponentActivity() {
     // Database for packet persistence
     private val database by lazy { PacketDatabase.getInstance(applicationContext) }
     private val packetDao by lazy { database.packetDao() }
+    private val registrationRepository by lazy {
+        RegistrationRepositoryImpl(database.appRegistrationDao())
+    }
 
     // Flow of packets from database (filtered by our appId)
     private val _packets = MutableStateFlow<List<PacketEntity>>(emptyList())
 
     // Currently selected packet for detail view (null = show list)
     private val _selectedPacket = MutableStateFlow<PacketEntity?>(null)
+
+    // Deep link prefix to navigate to
+    private val _deepLinkPrefix = MutableStateFlow<String?>(null)
 
     private var serviceBinder: UdpReceiverService.LocalBinder? = null
 
@@ -80,9 +93,11 @@ class MainActivity : ComponentActivity() {
             receiver = serviceBinder?.getReceiver()
             bound = true
 
-            // Register our appId to receive packets
-            receiver?.registerAppId(APP_ID)
-            Log.d(TAG, "Registered appId: $APP_ID")
+            // Register all our app prefixes to receive packets
+            APP_PREFIXES.forEach { prefix ->
+                receiver?.registerAppId(prefix)
+                Log.d(TAG, "Registered appId: $prefix")
+            }
 
             startStateCollection()
             startDatabaseObservation()
@@ -104,12 +119,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDatabaseObservation() {
-        databaseObserveJob?.cancel()
-        databaseObserveJob = activityScope.launch {
-            packetDao.observePacketsByAppId(APP_ID, limit = 100).collect { packets ->
-                _packets.value = packets
-            }
-        }
+        // Database observation is now handled by BrokerApp/MessagesScreen
+        // This method is kept for backward compatibility but does nothing
     }
 
     private fun startStateCollection() {
@@ -148,11 +159,35 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermission()
+        registerAppPrefixes()
         handleIntent(intent)
         setContent {
             UDPBrokerTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MainContent()
+                }
+            }
+        }
+    }
+
+    /**
+     * Register the app prefixes with notification configuration.
+     * This is done on startup to ensure prefixes are registered before messages arrive.
+     */
+    private fun registerAppPrefixes() {
+        activityScope.launch {
+            APP_PREFIXES.forEach { prefix ->
+                try {
+                    val registration = AppRegistration(
+                        prefix = prefix,
+                        packageName = packageName,
+                        notificationsEnabled = true,
+                        deepLinkUri = "udptest://messages/$prefix"
+                    )
+                    registrationRepository.register(registration)
+                    Log.d(TAG, "Registered prefix: $prefix with deep link udptest://messages/$prefix")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to register prefix: $prefix", e)
                 }
             }
         }
@@ -169,15 +204,31 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Auto-starting service on port $port from intent")
             startService(port)
         }
+
+        // Handle deep link (udptest://messages/{prefix})
+        val data = intent?.data
+        if (data != null && data.scheme == "udptest" && data.host == "messages") {
+            val prefix = data.pathSegments.firstOrNull()
+            val matchedPrefix = APP_PREFIXES.find { it.equals(prefix, ignoreCase = true) }
+            if (matchedPrefix != null) {
+                Log.d(TAG, "Deep link navigation to prefix: $matchedPrefix")
+                _deepLinkPrefix.value = matchedPrefix
+            } else if (prefix != null) {
+                Log.w(TAG, "Deep link rejected: unknown prefix '$prefix' (valid: $APP_PREFIXES)")
+            }
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        bindToService()
+        // Auto-start the service when app opens
+        startService()
     }
 
     override fun onStop() {
         super.onStop()
+        // Clear active prefix so notifications will show when backgrounded
+        AppState.activePrefix = null
         unbindFromService()
     }
 
@@ -189,32 +240,55 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MainContent() {
         val state by uiState.collectAsState()
-        val packets by _packets.collectAsState()
         val selectedPacket by _selectedPacket.collectAsState()
+        val deepLinkPrefix by _deepLinkPrefix.collectAsState()
 
         selectedPacket?.let { packet ->
             PacketDetailView(
                 packet = packet,
                 onBackClick = { _selectedPacket.value = null }
             )
-        } ?: BrokerScreen(
-            state = state,
-            packets = packets,
-            onStartClick = { startService() },
-            onStopClick = { stopService() },
-            onEraseClick = { eraseAllData() },
-            onPacketClick = { packet -> _selectedPacket.value = packet }
+        } ?: BrokerApp(
+            packetDao = packetDao,
+            onMarkAsRead = { prefix -> markAsRead(prefix) },
+            onPacketClick = { packet -> _selectedPacket.value = packet },
+            initialPrefix = deepLinkPrefix,
+            headerContent = {
+                ServiceControlPanel(
+                    state = state,
+                    onStartClick = { startService() },
+                    onStopClick = { stopService() }
+                )
+            }
         )
+    }
+
+    private fun markAsRead(prefix: String) {
+        activityScope.launch {
+            try {
+                val count = packetDao.markAllAsRead(prefix)
+                if (count > 0) {
+                    Log.d(TAG, "Marked $count messages as read for prefix: $prefix")
+                    // Note: For production apps, consider deleting read messages periodically
+                    // For this test app, we keep read messages visible for debugging
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to mark messages as read", e)
+            }
+        }
     }
 
     private fun eraseAllData() {
         activityScope.launch {
             try {
-                val deleted = packetDao.deletePacketsByAppId(APP_ID)
-                Log.d(TAG, "Erased $deleted packets")
+                var totalDeleted = 0
+                APP_PREFIXES.forEach { prefix ->
+                    totalDeleted += packetDao.deletePacketsByAppId(prefix)
+                }
+                Log.d(TAG, "Erased $totalDeleted packets")
                 Toast.makeText(
                     this@MainActivity,
-                    "Erased $deleted packets",
+                    "Erased $totalDeleted packets",
                     Toast.LENGTH_SHORT
                 ).show()
             } catch (e: Exception) {

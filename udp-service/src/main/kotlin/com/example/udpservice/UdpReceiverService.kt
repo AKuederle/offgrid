@@ -10,6 +10,9 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.udpservice.api.UdpPacket
+import com.example.udpservice.broadcast.MessageBroadcaster
+import com.example.udpservice.broadcast.MessageBroadcasterImpl
+import com.example.udpservice.persistence.AppRegistrationDao
 import com.example.udpservice.persistence.PacketDatabase
 import com.example.udpservice.persistence.PacketDao
 import com.example.udpservice.persistence.PacketEntity
@@ -39,6 +42,12 @@ class UdpReceiverService : Service() {
     // Database for packet persistence
     private val database by lazy { PacketDatabase.getInstance(applicationContext) }
     private val packetDao: PacketDao by lazy { database.packetDao() }
+    private val registrationDao: AppRegistrationDao by lazy { database.appRegistrationDao() }
+
+    // Broadcaster for notifying client apps
+    private val messageBroadcaster: MessageBroadcaster by lazy {
+        MessageBroadcasterImpl(applicationContext)
+    }
 
     companion object {
         private const val TAG = "UdpReceiverService"
@@ -73,7 +82,7 @@ class UdpReceiverService : Service() {
     }
 
     /**
-     * Persist a received packet to the database.
+     * Persist a received packet to the database and broadcast to registered client.
      * Runs in the service scope to not block the receive loop.
      */
     private suspend fun persistPacket(packet: UdpPacket, appId: String, payload: ByteArray) {
@@ -81,9 +90,29 @@ class UdpReceiverService : Service() {
             val entity = packet.toEntity(appId, payload)
             packetDao.insertPacket(entity)
             Log.d(TAG, "Persisted packet: appId=$appId, size=${payload.size}")
+
+            // Broadcast to registered client if any
+            broadcastToRegisteredClient(appId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist packet", e)
             // Continue receiving - don't let DB errors stop service
+        }
+    }
+
+    /**
+     * Send explicit broadcast to the registered package for this prefix.
+     * Does nothing if the prefix is not registered.
+     */
+    private suspend fun broadcastToRegisteredClient(appId: String) {
+        try {
+            val registration = registrationDao.getRegistration(appId)
+            if (registration != null) {
+                messageBroadcaster.broadcastNewMessage(appId, registration.packageName)
+                Log.d(TAG, "Broadcast sent: prefix=$appId, package=${registration.packageName}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to broadcast for prefix $appId", e)
+            // Non-fatal - message is already persisted
         }
     }
 

@@ -7,6 +7,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-01
 - Room database with appId-indexed packets for multi-app filtering (002-message-persistence)
 - Reliable UDP: Selective Repeat ARQ with SACK, RFC 9002 RTT estimation, 64KB fragmentation (003-reliable-transport)
 - Kotlin 1.9.x, Python 3.10+ (001-udp-receiver-mvp)
+- Kotlin 1.9.22 with Coroutines 1.7.3 + Jetpack Compose + Material3, Room 2.6.1, AndroidX Core (notifications) (006-app-notifications)
+- Room database (existing `packet_database.db`, schema version 2) (006-app-notifications)
 
 ## Project Structure
 
@@ -71,9 +73,9 @@ cd tools/udp-sender && uv run ruff check .
 Kotlin 1.9.x, Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 006-app-notifications: Added Kotlin 1.9.22 with Coroutines 1.7.3 + Jetpack Compose + Material3, Room 2.6.1, AndroidX Core (notifications)
 - 003-reliable-transport: Added reliable-udp module with Selective Repeat ARQ, SACK, RFC 9002 RTT estimation, 64KB message fragmentation, delivery callbacks. Python tool and UdpSocket now always use reliable transport.
 - 002-message-persistence: Added Room 2.6.1 persistence with appId prefix filtering, packet detail view, erase functionality
-- 001-udp-receiver-mvp: Added Kotlin 1.9.x, Python 3.10+
 
 <!-- MANUAL ADDITIONS START -->
 ## Testing with the Android App

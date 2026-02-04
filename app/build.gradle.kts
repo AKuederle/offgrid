@@ -85,6 +85,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 
+    // WorkManager for background notification processing
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Navigation Compose for deep links
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
@@ -103,6 +109,15 @@ dependencies {
     // Android instrumentation tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
+
+    // Room testing
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
+
+    // Coroutines test for instrumented tests
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 
     // Compose UI testing
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

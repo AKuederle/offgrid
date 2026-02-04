@@ -20,7 +20,8 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["appId"]),
         Index(value = ["timestamp"], orders = [Index.Order.DESC]),
-        Index(value = ["appId", "timestamp"], orders = [Index.Order.ASC, Index.Order.DESC])
+        Index(value = ["appId", "timestamp"], orders = [Index.Order.ASC, Index.Order.DESC]),
+        Index(value = ["appId", "isRead"])
     ]
 )
 data class PacketEntity(
@@ -40,7 +41,10 @@ data class PacketEntity(
     val sourcePort: Int,
 
     @ColumnInfo(name = "timestamp")
-    val timestamp: Long
+    val timestamp: Long,
+
+    @ColumnInfo(name = "isRead", defaultValue = "0")
+    val isRead: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -51,7 +55,8 @@ data class PacketEntity(
             data.contentEquals(other.data) &&
             sourceIp == other.sourceIp &&
             sourcePort == other.sourcePort &&
-            timestamp == other.timestamp
+            timestamp == other.timestamp &&
+            isRead == other.isRead
     }
 
     override fun hashCode(): Int {
@@ -61,6 +66,7 @@ data class PacketEntity(
         result = 31 * result + sourceIp.hashCode()
         result = 31 * result + sourcePort
         result = 31 * result + timestamp.hashCode()
+        result = 31 * result + isRead.hashCode()
         return result
     }
 }

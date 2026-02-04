@@ -21,10 +21,19 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.UDPBroker">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link intent filter for message screens -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="udptest" android:host="messages" />
             </intent-filter>
         </activity>
 
@@ -38,6 +47,12 @@
                 <action android:name="com.example.udpbroker.STOP_SERVICE" />
             </intent-filter>
         </receiver>
+
+        <!-- Broadcast receiver for new message notifications from UDP service -->
+        <!-- Not exported: broker uses explicit component broadcasts to this receiver -->
+        <receiver
+            android:name=".receiver.MessageReceiver"
+            android:exported="false" />
 
     </application>
 

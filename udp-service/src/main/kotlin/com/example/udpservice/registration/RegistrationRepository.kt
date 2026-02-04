@@ -1,0 +1,64 @@
+package com.example.udpservice.registration
+
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Repository for app prefix registrations.
+ *
+ * Thread Safety: All methods are thread-safe for concurrent access.
+ *
+ * Persistence: Registrations survive app restarts and are stored in Room database.
+ */
+interface RegistrationRepository {
+
+    /**
+     * Registers a new prefix or updates existing registration.
+     *
+     * @param registration The registration configuration
+     * @return true if created new, false if updated existing
+     */
+    suspend fun register(registration: AppRegistration): Boolean
+
+    /**
+     * Removes a prefix registration.
+     *
+     * @param prefix The prefix to unregister
+     * @return true if registration existed and was removed
+     */
+    suspend fun unregister(prefix: String): Boolean
+
+    /**
+     * Gets registration for a specific prefix.
+     *
+     * @param prefix The prefix to look up
+     * @return Registration or null if not registered
+     */
+    suspend fun getRegistration(prefix: String): AppRegistration?
+
+    /**
+     * Observes all registrations with notifications enabled.
+     *
+     * Updates whenever registrations change.
+     */
+    fun observeEnabledRegistrations(): Flow<List<AppRegistration>>
+
+    /**
+     * Observes all registrations regardless of notification setting.
+     */
+    fun observeAllRegistrations(): Flow<List<AppRegistration>>
+
+    /**
+     * Checks if a prefix is registered.
+     *
+     * @param prefix The prefix to check
+     * @return true if registered
+     */
+    suspend fun isRegistered(prefix: String): Boolean
+
+    /**
+     * Gets all registered prefixes.
+     *
+     * @return Set of registered prefix strings
+     */
+    suspend fun getRegisteredPrefixes(): Set<String>
+}

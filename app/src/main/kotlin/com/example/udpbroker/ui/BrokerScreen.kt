@@ -1,6 +1,7 @@
 package com.example.udpbroker.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,6 +67,86 @@ enum class UiServiceStatus {
     ERROR
 }
 
+/**
+ * Compact service status and control panel without Scaffold.
+ * Use this when embedding in another layout (e.g., as header content).
+ */
+@Composable
+fun ServiceControlPanel(
+    state: UiReceiverState,
+    onStartClick: () -> Unit,
+    onStopClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when (state.status) {
+                UiServiceStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer
+                UiServiceStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
+                UiServiceStatus.STARTING -> MaterialTheme.colorScheme.secondaryContainer
+                UiServiceStatus.STOPPED -> MaterialTheme.colorScheme.surfaceContainer
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = when (state.status) {
+                            UiServiceStatus.STOPPED -> "Stopped"
+                            UiServiceStatus.STARTING -> "Starting..."
+                            UiServiceStatus.RUNNING -> "Running"
+                            UiServiceStatus.ERROR -> "Error"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = when (state.status) {
+                            UiServiceStatus.RUNNING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            UiServiceStatus.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                    if (state.status == UiServiceStatus.RUNNING && state.addresses.isNotEmpty()) {
+                        Text(
+                            "${state.addresses.first()}:${state.port}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                    state.error?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+                when (state.status) {
+                    UiServiceStatus.STOPPED, UiServiceStatus.ERROR -> {
+                        Button(onClick = onStartClick) {
+                            Text("Start")
+                        }
+                    }
+                    UiServiceStatus.RUNNING, UiServiceStatus.STARTING -> {
+                        OutlinedButton(onClick = onStopClick) {
+                            Text("Stop")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrokerScreen(
@@ -75,6 +156,7 @@ fun BrokerScreen(
     onStopClick: () -> Unit,
     onEraseClick: (() -> Unit)? = null,
     onPacketClick: ((PacketEntity) -> Unit)? = null,
+    showPacketList: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var showEraseDialog by remember { mutableStateOf(false) }
@@ -243,8 +325,8 @@ fun BrokerScreen(
                 }
             }
 
-            // Packet list
-            if (packets.isNotEmpty()) {
+            // Packet list (only shown when showPacketList is true)
+            if (showPacketList && packets.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     "Received Packets (${packets.size})",
